@@ -1,0 +1,69 @@
+// backend/models/Subcategory.js
+import * as db from '../config/db.js';
+
+export const getAll = async (categoryId = null) => {
+  let query;
+  
+  if (categoryId) {
+    query = {
+      text: 'SELECT * FROM subcategories WHERE category_id = $1 ORDER BY name',
+      values: [categoryId]
+    };
+  } else {
+    query = {
+      text: 'SELECT s.*, c.name as category_name FROM subcategories s JOIN categories c ON s.category_id = c.id ORDER BY c.name, s.name'
+    };
+  }
+  
+  const result = await db.query(query);
+  return result.rows;
+};
+
+export const findById = async (id) => {
+  const query = {
+    text: 'SELECT * FROM subcategories WHERE id = $1',
+    values: [id]
+  };
+  
+  const result = await db.query(query);
+  return result.rows[0];
+};
+
+export const create = async (data) => {
+  const { category_id, name, slug, description } = data;
+  
+  const query = {
+    text: `INSERT INTO subcategories(category_id, name, slug, description) 
+           VALUES($1, $2, $3, $4) 
+           RETURNING *`,
+    values: [category_id, name, slug, description]
+  };
+  
+  const result = await db.query(query);
+  return result.rows[0];
+};
+
+export const update = async (id, data) => {
+  const { category_id, name, slug, description, active } = data;
+  
+  const query = {
+    text: `UPDATE subcategories 
+           SET category_id = $1, name = $2, slug = $3, description = $4, active = $5 
+           WHERE id = $6 
+           RETURNING *`,
+    values: [category_id, name, slug, description, active, id]
+  };
+  
+  const result = await db.query(query);
+  return result.rows[0];
+};
+
+export const remove = async (id) => {
+  const query = {
+    text: 'DELETE FROM subcategories WHERE id = $1 RETURNING *',
+    values: [id]
+  };
+  
+  const result = await db.query(query);
+  return result.rows[0];
+};
