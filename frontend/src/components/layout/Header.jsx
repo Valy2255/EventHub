@@ -1,10 +1,15 @@
+// Header.jsx (update)
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaTicketAlt, FaSearch, FaMapMarkerAlt, FaCalendar } from 'react-icons/fa';
+import { FaTicketAlt, FaSearch, FaMapMarkerAlt, FaCalendar, FaUserCircle } from 'react-icons/fa';
+import { useAuth } from '../../context/AuthContext'; // Update this path as needed
 
 export default function Header() {
   const [searchText, setSearchText] = useState('');
   const [location, setLocation] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  const { user, logout } = useAuth();
 
   return (
     <header className="bg-gray-900 text-white">
@@ -49,18 +54,55 @@ export default function Header() {
 
         {/* Butoane dreapta */}
         <div className="flex items-center space-x-4">
-          <Link
-            to="/login"
-            className="px-4 py-2 text-white hover:text-purple-500 transition-colors"
-          >
-            Login
-          </Link>
-          <Link
-            to="/register"
-            className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700 transition-colors"
-          >
-            Register
-          </Link>
+          {user ? (
+            <div className="relative">
+              <button 
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center space-x-2 hover:text-purple-500 transition-colors"
+              >
+                <FaUserCircle size={24} />
+                <span className="hidden md:block">{user.name}</span>
+              </button>
+              
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                  <Link 
+                    to="/profile" 
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Profilul meu
+                  </Link>
+                  <Link 
+                    to="/tickets" 
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Biletele mele
+                  </Link>
+                  <button 
+                    onClick={logout}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Deconectare
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="px-4 py-2 text-white hover:text-purple-500 transition-colors"
+              >
+                Login
+              </Link>
+              <Link
+                to="/register"
+                className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700 transition-colors"
+              >
+                Register
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

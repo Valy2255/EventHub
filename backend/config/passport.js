@@ -13,6 +13,11 @@ const jwtOptions = {
   secretOrKey: config.jwt.secret
 };
 
+// Verifică dacă JWT_SECRET este setat
+if (!config.jwt.secret || config.jwt.secret === 'your_secure_secret_key') {
+  console.warn('WARNING: JWT_SECRET is not properly set. Authentication will be insecure!');
+}
+
 passport.use(new JwtStrategy(jwtOptions, async (payload, done) => {
   try {
     const user = await User.findById(payload.user.id);
@@ -24,6 +29,12 @@ passport.use(new JwtStrategy(jwtOptions, async (payload, done) => {
     return done(error, false);
   }
 }));
+
+if (!config.google.clientId || !config.google.clientSecret) {
+  console.error('Google OAuth credentials are missing. Check your .env file.');
+} else {
+  console.log('Google OAuth credentials loaded successfully.');
+}
 
 // Configurare Google Strategy
 passport.use(new GoogleStrategy({
@@ -71,6 +82,13 @@ passport.use(new GoogleStrategy({
     return done(error, false);
   }
 }));
+
+// Add this after the Google credentials check in passport.js
+if (!config.facebook.appId || !config.facebook.appSecret) {
+  console.error('Facebook OAuth credentials are missing. Check your .env file.');
+} else {
+  console.log('Facebook OAuth credentials loaded successfully.');
+}
 
 // Configurare Facebook Strategy
 passport.use(new FacebookStrategy({

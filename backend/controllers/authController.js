@@ -1,3 +1,4 @@
+import config from '../config/config.js';
 import * as User from '../models/User.js';
 import jwtGenerator from '../utils/jwtGenerator.js';
 
@@ -75,10 +76,16 @@ export const socialLoginCallback = (req, res) => {
     // req.user este utilizatorul autentificat prin Passport
     const token = jwtGenerator(req.user.id);
     
+    // Use config.cors.origin instead of process.env.CLIENT_URL
+    const redirectURL = `${config.cors.origin}/social-auth-callback?token=${token}`;
+    
+    // Log the redirect for debugging
+    console.log(`Redirecting to: ${redirectURL}`);
+    
     // Redirecționează către frontend cu tokenul
-    res.redirect(`${process.env.CLIENT_URL}/social-auth-callback?token=${token}`);
+    res.redirect(redirectURL);
   } catch (error) {
     console.error('Error in social login callback:', error);
-    res.redirect(`${process.env.CLIENT_URL}/login?error=auth-failed`);
+    res.redirect(`${config.cors.origin}/login?error=auth-failed`);
   }
 };

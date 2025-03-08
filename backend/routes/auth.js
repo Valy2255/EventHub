@@ -22,11 +22,14 @@ router.get('/google/callback',
 
 // Rute pentru autentificare Facebook
 router.get('/facebook', passport.authenticate('facebook', { 
-  scope: ['email'] 
+  scope: ['email', 'public_profile'] 
 }));
 
-router.get('/facebook/callback', 
-  passport.authenticate('facebook', { failureRedirect: '/login' }),
+router.get('/facebook/callback',
+  passport.authenticate('facebook', { 
+    session: false,
+    failureRedirect: '/login'
+  }),
   authController.socialLoginCallback
 );
 
