@@ -1,8 +1,8 @@
 // src/pages/Register.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaFacebook, FaGoogle, FaUser, FaEnvelope, FaLock } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { FaFacebook, FaGoogle, FaUser, FaEnvelope, FaLock, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -11,11 +11,83 @@ export default function Register() {
     password: '',
     confirmPassword: ''
   });
+  
+  const [validation, setValidation] = useState({
+    name: { valid: false, message: '' },
+    email: { valid: false, message: '' },
+    password: { valid: false, message: '' },
+    confirmPassword: { valid: false, message: '' },
+  });
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
   const { register, socialLogin } = useAuth();
   const navigate = useNavigate();
+  
+  // Validare în timp real
+  useEffect(() => {
+    // Validare nume
+    if (formData.name.trim().length > 0) {
+      if (formData.name.trim().length < 3) {
+        setValidation(prev => ({
+          ...prev, 
+          name: { valid: false, message: 'Numele trebuie să aibă cel puțin 3 caractere' }
+        }));
+      } else {
+        setValidation(prev => ({
+          ...prev, 
+          name: { valid: true, message: '' }
+        }));
+      }
+    }
+    
+    // Validare email
+    if (formData.email.trim().length > 0) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        setValidation(prev => ({
+          ...prev, 
+          email: { valid: false, message: 'Adresa de email nu este validă' }
+        }));
+      } else {
+        setValidation(prev => ({
+          ...prev, 
+          email: { valid: true, message: '' }
+        }));
+      }
+    }
+    
+    // Validare parolă
+    if (formData.password.length > 0) {
+      if (formData.password.length < 6) {
+        setValidation(prev => ({
+          ...prev, 
+          password: { valid: false, message: 'Parola trebuie să aibă cel puțin 6 caractere' }
+        }));
+      } else {
+        setValidation(prev => ({
+          ...prev, 
+          password: { valid: true, message: '' }
+        }));
+      }
+    }
+    
+    // Validare confirmare parolă
+    if (formData.confirmPassword.length > 0) {
+      if (formData.confirmPassword !== formData.password) {
+        setValidation(prev => ({
+          ...prev, 
+          confirmPassword: { valid: false, message: 'Parolele nu coincid' }
+        }));
+      } else {
+        setValidation(prev => ({
+          ...prev, 
+          confirmPassword: { valid: true, message: '' }
+        }));
+      }
+    }
+  }, [formData]);
   
   const handleChange = (e) => {
     setFormData({
@@ -24,12 +96,21 @@ export default function Register() {
     });
   };
   
+  const isFormValid = () => {
+    return (
+      validation.name.valid && 
+      validation.email.valid && 
+      validation.password.valid && 
+      validation.confirmPassword.valid
+    );
+  };
+  
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
     
-    if (formData.password !== formData.confirmPassword) {
-      setError('Parolele nu coincid');
+    if (!isFormValid()) {
+      setError('Te rugăm să corectezi erorile din formular');
       return;
     }
     
@@ -41,7 +122,13 @@ export default function Register() {
         email: formData.email,
         password: formData.password
       });
-      navigate('/');
+      
+      // Redirecționare către login cu mesaj de succes
+      navigate('/login', { 
+        state: { 
+          successMessage: 'Cont creat cu succes! Te poți autentifica acum.' 
+        } 
+      });
     } catch (err) {
       setError(err.response?.data?.error || 'A apărut o eroare la înregistrare');
     } finally {
@@ -51,6 +138,24 @@ export default function Register() {
   
   const handleSocialLogin = (provider) => {
     socialLogin(provider);
+  };
+  
+  const renderValidationIcon = (field) => {
+    if (formData[field] && formData[field].length > 0) {
+      return validation[field].valid ? 
+        <FaCheckCircle className="absolute right-3 text-green-500" /> : 
+        <FaTimesCircle className="absolute right-3 text-red-500" />;
+    }
+    return null;
+  };
+  
+  const renderValidationMessage = (field) => {
+    if (formData[field] && formData[field].length > 0 && !validation[field].valid) {
+      return (
+        <p className="text-xs text-red-500 mt-1">{validation[field].message}</p>
+      );
+    }
+    return null;
   };
   
   return (
@@ -75,7 +180,7 @@ export default function Register() {
         )}
         
         <form className="mt-8 space-y-6" onSubmit={handleRegister}>
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="space-y-4">
             <div>
               <label htmlFor="name" className="sr-only">Nume</label>
               <div className="flex items-center relative">
@@ -89,11 +194,18 @@ export default function Register() {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+                  className={`appearance-none relative block w-full px-10 py-3 border ${
+                    formData.name && !validation.name.valid 
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
+                  } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
                   placeholder="Nume complet"
                 />
+                {renderValidationIcon('name')}
               </div>
+              {renderValidationMessage('name')}
             </div>
+            
             <div>
               <label htmlFor="email-address" className="sr-only">Adresa de email</label>
               <div className="flex items-center relative">
@@ -108,11 +220,18 @@ export default function Register() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+                  className={`appearance-none relative block w-full px-10 py-3 border ${
+                    formData.email && !validation.email.valid 
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
+                  } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
                   placeholder="Adresa de email"
                 />
+                {renderValidationIcon('email')}
               </div>
+              {renderValidationMessage('email')}
             </div>
+            
             <div>
               <label htmlFor="password" className="sr-only">Parola</label>
               <div className="flex items-center relative">
@@ -127,11 +246,18 @@ export default function Register() {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+                  className={`appearance-none relative block w-full px-10 py-3 border ${
+                    formData.password && !validation.password.valid 
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
+                  } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
                   placeholder="Parola"
                 />
+                {renderValidationIcon('password')}
               </div>
+              {renderValidationMessage('password')}
             </div>
+            
             <div>
               <label htmlFor="confirmPassword" className="sr-only">Confirmă parola</label>
               <div className="flex items-center relative">
@@ -146,20 +272,26 @@ export default function Register() {
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+                  className={`appearance-none relative block w-full px-10 py-3 border ${
+                    formData.confirmPassword && !validation.confirmPassword.valid 
+                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
+                  } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
                   placeholder="Confirmă parola"
                 />
+                {renderValidationIcon('confirmPassword')}
               </div>
+              {renderValidationMessage('confirmPassword')}
             </div>
           </div>
 
           <div>
             <button
               type="submit"
-              disabled={loading}
-              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 ${
-                loading ? 'opacity-70 cursor-not-allowed' : ''
-              }`}
+              disabled={loading || !isFormValid()}
+              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
+                isFormValid() ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-400 cursor-not-allowed'
+              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors`}
             >
               {loading ? 'Se procesează...' : 'Înregistrare'}
             </button>

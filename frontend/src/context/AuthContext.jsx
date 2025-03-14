@@ -1,5 +1,5 @@
 // src/context/AuthContext.jsx
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect } from 'react';
 import api from '../services/api';
 
 const AuthContext = createContext();
@@ -11,27 +11,57 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
+      // Verificăm întâi în sessionStorage
+      let token = sessionStorage.getItem('token');
+      
+      // Dacă nu există în sessionStorage, verificăm în localStorage
+      if (!token) {
+        const authType = localStorage.getItem('authType');
+        
+        // Folosim token-ul din localStorage doar dacă tipul de autentificare este persistent
+        if (authType === 'persistent') {
+          token = localStorage.getItem('token');
+        }
+      }
+      
       if (token) {
         try {
+          // Configurăm header-ul de autorizare pentru toate cererile viitoare
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          
           const response = await api.get('/auth/me');
           setUser(response.data.user);
         } catch (err) {
           console.error('Error verifying authentication:', err);
+          
+          // Curățăm datele de autentificare în caz de eroare
+          sessionStorage.removeItem('token');
           localStorage.removeItem('token');
+          localStorage.removeItem('authType');
+          delete api.defaults.headers.common['Authorization'];
         }
       }
+      
       setLoading(false);
     };
-
+  
     checkAuth();
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     setError(null);
     try {
       const response = await api.post('/auth/login', { email, password });
-      localStorage.setItem('token', response.data.token);
+      
+      // Salvăm token-ul în funcție de opțiunea "Ține-mă minte"
+      if (rememberMe) {
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('authType', 'persistent');
+      } else {
+        sessionStorage.setItem('token', response.data.token);
+        localStorage.setItem('authType', 'session');
+      }
+      
       setUser(response.data.user);
       return response.data;
     } catch (err) {
@@ -44,8 +74,6 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await api.post('/auth/register', userData);
-      localStorage.setItem('token', response.data.token);
-      setUser(response.data.user);
       return response.data;
     } catch (err) {
       setError(err.response?.data?.error || 'A apărut o eroare la înregistrare');
@@ -55,6 +83,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('authType');
+    sessionStorage.removeItem('token');
     setUser(null);
   };
 
@@ -80,4 +110,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export default AuthContext;

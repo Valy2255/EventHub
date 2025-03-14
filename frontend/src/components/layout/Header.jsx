@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaTicketAlt, FaSearch, FaMapMarkerAlt, FaCalendar, FaUserCircle } from 'react-icons/fa';
-import { useAuth } from '../../context/AuthContext'; // Update this path as needed
+import { useAuth } from '../../hooks/useAuth' // Update this path as needed
 
 export default function Header() {
   const [searchText, setSearchText] = useState('');

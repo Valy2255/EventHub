@@ -9,8 +9,6 @@ const __dirname = dirname(__filename);
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-// Pentru debug, afișează variabilele de mediu
-
 console.log("Environment variables:", {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
@@ -21,34 +19,32 @@ console.log("Environment variables:", {
 });
 
 export default {
-  port: process.env.PORT || 5000,
+  port: process.env.PORT,
   db: {
-    user: process.env.DB_USER || "postgres",
-    host: process.env.DB_HOST || "localhost",
-    database: process.env.DB_NAME || "eventhub",
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
     password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT || 5432,
+    port: process.env.DB_PORT,
   },
   jwt: {
-    secret: process.env.JWT_SECRET || "your_jwt_secret",
-    expiresIn: process.env.JWT_EXPIRES_IN || "1d",
+    secret: process.env.JWT_SECRET,
+    expiresIn: process.env.JWT_EXPIRES_IN,
   },
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: process.env.CLIENT_URL,
     credentials: true,
   },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackUrl:
-      process.env.GOOGLE_CALLBACK_URL ||
-      "http://localhost:5000/api/auth/google/callback",
+      process.env.GOOGLE_CALLBACK_URL,
   },
   facebook: {
     appId: process.env.FACEBOOK_APP_ID,
     appSecret: process.env.FACEBOOK_APP_SECRET,
     callbackUrl:
-      process.env.FACEBOOK_CALLBACK_URL ||
-      "http://localhost:5000/api/auth/facebook/callback",
+      process.env.FACEBOOK_CALLBACK_URL,
   },
 };
