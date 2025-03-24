@@ -9,6 +9,8 @@ import EventsPage from "./pages/EventsPage";
 import NotFound from "./pages/NotFound";
 import SocialAuthCallback from "./components/auth/SocialAuthCallback";
 import PrivateRoute from "./components/routing/PrivateRoute";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider } from "./context/AuthContext";
 
 function App() {
@@ -24,6 +26,8 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/social-auth-callback" element={<SocialAuthCallback />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             
             {/* Protected routes */}
             <Route element={<PrivateRoute />}>

@@ -38,13 +38,20 @@ export default {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackUrl:
-      process.env.GOOGLE_CALLBACK_URL,
+    callbackUrl: process.env.GOOGLE_CALLBACK_URL,
   },
   facebook: {
     appId: process.env.FACEBOOK_APP_ID,
     appSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackUrl:
-      process.env.FACEBOOK_CALLBACK_URL,
+    callbackUrl: process.env.FACEBOOK_CALLBACK_URL,
+  },
+
+  email: {
+    host: process.env.EMAIL_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.EMAIL_PORT || "587"),
+    secure: process.env.EMAIL_SECURE === "true",
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+    fromName: process.env.EMAIL_FROM_NAME || "EventHub",
   },
 };

@@ -9,6 +9,9 @@ const router = express.Router();
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/me", auth, authController.getMe);
+router.post('/forgot-password', authController.forgotPassword);
+router.get('/reset-password/:token', authController.verifyResetToken);
+router.post('/reset-password/:token', authController.resetPassword);
 
 // Rute pentru autentificare Google
 router.get(
@@ -43,5 +46,7 @@ router.get(
   }),
   authController.socialLoginCallback
 );
+
+
 
 export default router;
