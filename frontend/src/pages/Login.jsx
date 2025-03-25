@@ -22,7 +22,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Verificăm dacă există mesaje de eroare sau de succes în state
+  // Check if there are error or success messages in state
   useEffect(() => {
     if (location.state?.error) {
       setError(location.state.error);
@@ -31,7 +31,7 @@ export default function Login() {
     if (location.state?.successMessage) {
       setSuccessMessage(location.state.successMessage);
 
-      // Eliminăm mesajul din history pentru a nu apărea din nou la reîncărcare
+      // Remove the message from history to prevent reappearing on reload
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
@@ -47,7 +47,7 @@ export default function Login() {
       navigate("/");
     } catch (err) {
       setError(
-        err.response?.data?.error || "A apărut o eroare la autentificare"
+        err.response?.data?.error || "An error occurred during authentication"
       );
     } finally {
       setLoading(false);
@@ -63,15 +63,15 @@ export default function Login() {
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-md">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Autentificare
+            Login
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Sau{" "}
+            Or{" "}
             <Link
               to="/register"
               className="font-medium text-purple-600 hover:text-purple-500"
             >
-              creează un cont nou
+              create a new account
             </Link>
           </p>
         </div>
@@ -99,7 +99,7 @@ export default function Login() {
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="email-address" className="sr-only">
-                Adresa de email
+                Email address
               </label>
               <div className="flex items-center relative">
                 <div className="absolute left-3 text-gray-400">
@@ -114,13 +114,13 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
-                  placeholder="Adresa de email"
+                  placeholder="Email address"
                 />
               </div>
             </div>
             <div>
               <label htmlFor="password" className="sr-only">
-                Parola
+                Password
               </label>
               <div className="flex items-center relative">
                 <div className="absolute left-3 text-gray-400">
@@ -135,7 +135,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none rounded-none relative block w-full px-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
-                  placeholder="Parola"
+                  placeholder="Password"
                 />
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function Login() {
                 htmlFor="remember-me"
                 className="ml-2 block text-sm text-gray-900"
               >
-                Ține-mă minte
+                Remember me
               </label>
             </div>
 
@@ -164,7 +164,7 @@ export default function Login() {
                 to="/forgot-password"
                 className="font-medium text-purple-600 hover:text-purple-500"
               >
-                Ai uitat parola?
+                Forgot your password?
               </Link>
             </div>
           </div>
@@ -177,7 +177,7 @@ export default function Login() {
                 loading ? "opacity-70 cursor-not-allowed" : ""
               }`}
             >
-              {loading ? "Se procesează..." : "Autentificare"}
+              {loading ? "Processing..." : "Login"}
             </button>
           </div>
         </form>
@@ -189,7 +189,7 @@ export default function Login() {
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-white text-gray-500">
-                Sau continuă cu
+                Or continue with
               </span>
             </div>
           </div>

@@ -5,6 +5,7 @@ import config from './config/config.js';
 import './config/passport.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
+import categoryRoutes from './routes/categoryRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
 
 const app = express();
@@ -18,6 +19,7 @@ app.use(passport.initialize());
 // Rute
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/categories', categoryRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

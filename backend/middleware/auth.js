@@ -7,11 +7,10 @@ export default (req, res, next) => {
     }
     
     if (!user) {
-      return res.status(401).json({ error: 'Acces interzis. Token lipsă sau invalid.' });
+      return res.status(401).json({ error: 'Access denied. Missing or invalid token.' });
     }
     
     req.user = user;
     next();
   })(req, res, next);
 };
-

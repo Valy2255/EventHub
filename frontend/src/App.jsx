@@ -5,12 +5,14 @@ import Footer from "./components/layout/Footer";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import EventsPage from "./pages/EventsPage";
+import CategoryEvents from "./pages/CategoryEvents";
+import SubcategoryEvents from "./pages/SubcategoryEvents";
 import NotFound from "./pages/NotFound";
 import SocialAuthCallback from "./components/auth/SocialAuthCallback";
 import PrivateRoute from "./components/routing/PrivateRoute";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider } from "./context/AuthContext";
 
 function App() {
@@ -24,10 +26,14 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/events" element={<EventsPage />} />
-            <Route path="/social-auth-callback" element={<SocialAuthCallback />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route path="/social-auth-callback" element={<SocialAuthCallback />} />
+            
+            {/* Routes for categories and subcategories */}
+            <Route path="/events/category/:slug" element={<CategoryEvents />} />
+            <Route path="/events/category/:categorySlug/:subcategorySlug" element={<SubcategoryEvents />} />
             
             {/* Protected routes */}
             <Route element={<PrivateRoute />}>

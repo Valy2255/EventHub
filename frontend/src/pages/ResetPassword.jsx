@@ -23,7 +23,7 @@ export default function ResetPassword() {
         await api.get(`/auth/reset-password/${token}`);
       } catch (err) {
         setTokenValid(false);
-        setError(err.response?.data?.error || 'Link-ul de resetare este invalid sau a expirat.');
+        setError(err.response?.data?.error || 'The reset link is invalid or has expired.');
       }
     };
 
@@ -33,10 +33,10 @@ export default function ResetPassword() {
   }, [token]);
 
   useEffect(() => {
-    // Validează parola
+    // Validate password
     setPasswordValid(password.length >= 6);
     
-    // Verifică dacă parolele coincid
+    // Check if passwords match
     setPasswordsMatch(password === confirmPassword && password !== '');
   }, [password, confirmPassword]);
 
@@ -44,12 +44,12 @@ export default function ResetPassword() {
     e.preventDefault();
     
     if (!passwordValid) {
-      setError('Parola trebuie să aibă cel puțin 6 caractere.');
+      setError('Password must be at least 6 characters long.');
       return;
     }
     
     if (!passwordsMatch) {
-      setError('Parolele nu coincid.');
+      setError('Passwords do not match.');
       return;
     }
     
@@ -58,18 +58,18 @@ export default function ResetPassword() {
 
     try {
       await api.post(`/auth/reset-password/${token}`, { password });
-      setSuccessMessage('Parola a fost resetată cu succes!');
+      setSuccessMessage('Password has been reset successfully!');
       
-      // Redirecționează către login după 3 secunde
+      // Redirect to login after 3 seconds
       setTimeout(() => {
         navigate('/login', { 
           state: { 
-            successMessage: 'Parola a fost resetată cu succes! Te poți autentifica acum.' 
+            successMessage: 'Password has been reset successfully! You can now log in.' 
           } 
         });
       }, 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'A apărut o eroare. Te rugăm să încerci din nou.');
+      setError(err.response?.data?.error || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -80,14 +80,14 @@ export default function ResetPassword() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-md text-center">
           <FaTimesCircle className="mx-auto h-12 w-12 text-red-500" />
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Link invalid</h2>
-          <p className="mt-2 text-gray-600">Link-ul de resetare este invalid sau a expirat.</p>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Invalid Link</h2>
+          <p className="mt-2 text-gray-600">The reset link is invalid or has expired.</p>
           <div className="mt-6">
             <Link 
               to="/forgot-password" 
               className="w-full inline-flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
             >
-              Solicită un nou link
+              Request a new link
             </Link>
           </div>
         </div>
@@ -100,10 +100,10 @@ export default function ResetPassword() {
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-md">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Resetează parola
+            Reset Password
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Creează o parolă nouă pentru contul tău.
+            Create a new password for your account.
           </p>
         </div>
 
@@ -123,7 +123,7 @@ export default function ResetPassword() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="password" className="sr-only">Parolă nouă</label>
+              <label htmlFor="password" className="sr-only">New password</label>
               <div className="flex items-center relative">
                 <div className="absolute left-3 text-gray-400">
                   <FaLock />
@@ -140,7 +140,7 @@ export default function ResetPassword() {
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
                   } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
-                  placeholder="Parolă nouă"
+                  placeholder="New password"
                 />
                 {password && (
                   passwordValid ? 
@@ -149,55 +149,55 @@ export default function ResetPassword() {
                 )}
               </div>
               {password && !passwordValid && (
-                <p className="text-xs text-red-500 mt-1">Parola trebuie să aibă cel puțin 6 caractere</p>
+                <p className="text-xs text-red-500 mt-1">Password must be at least 6 characters long</p>
               )}
-            </div>
-            
-            <div>
-              <label htmlFor="confirmPassword" className="sr-only">Confirmă parola</label>
-              <div className="flex items-center relative">
-                <div className="absolute left-3 text-gray-400">
-                  <FaLock />
+              </div>
+              
+              <div>
+                <label htmlFor="confirmPassword" className="sr-only">Confirm password</label>
+                <div className="flex items-center relative">
+                  <div className="absolute left-3 text-gray-400">
+                    <FaLock />
+                  </div>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={`appearance-none relative block w-full px-10 py-3 border ${
+                      confirmPassword && !passwordsMatch 
+                        ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                        : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
+                    } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
+                    placeholder="Confirm password"
+                  />
+                  {confirmPassword && (
+                    passwordsMatch ? 
+                      <FaCheckCircle className="absolute right-3 text-green-500" /> : 
+                      <FaTimesCircle className="absolute right-3 text-red-500" />
+                  )}
                 </div>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`appearance-none relative block w-full px-10 py-3 border ${
-                    confirmPassword && !passwordsMatch 
-                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                      : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
-                  } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
-                  placeholder="Confirmă parola"
-                />
-                {confirmPassword && (
-                  passwordsMatch ? 
-                    <FaCheckCircle className="absolute right-3 text-green-500" /> : 
-                    <FaTimesCircle className="absolute right-3 text-red-500" />
+                {confirmPassword && !passwordsMatch && (
+                  <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
                 )}
               </div>
-              {confirmPassword && !passwordsMatch && (
-                <p className="text-xs text-red-500 mt-1">Parolele nu coincid</p>
-              )}
             </div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading || !passwordValid || !passwordsMatch}
-              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
-                passwordValid && passwordsMatch ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-400 cursor-not-allowed'
-              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500`}
-            >
-              {loading ? 'Se procesează...' : 'Resetează parola'}
-            </button>
-          </div>
-        </form>
+  
+            <div>
+              <button
+                type="submit"
+                disabled={loading || !passwordValid || !passwordsMatch}
+                className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
+                  passwordValid && passwordsMatch ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-400 cursor-not-allowed'
+                } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500`}
+              >
+                {loading ? 'Processing...' : 'Reset Password'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }

@@ -1,7 +1,8 @@
 // backend/controllers/adminController.js
 import * as User from '../models/User.js';
 import * as db from '../config/db.js';
-// Obține toți utilizatorii (admin only)
+
+// Get all users (admin only)
 export const getAllUsers = async (req, res, next) => {
   try {
     const query = {
@@ -15,12 +16,12 @@ export const getAllUsers = async (req, res, next) => {
   }
 };
 
-// Obține un utilizator după ID (admin only)
+// Get user by ID (admin only)
 export const getUserById = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) {
-      return res.status(404).json({ error: 'Utilizatorul nu a fost găsit' });
+      return res.status(404).json({ error: 'User not found' });
     }
     res.json({ user });
   } catch (error) {
@@ -28,13 +29,13 @@ export const getUserById = async (req, res, next) => {
   }
 };
 
-// Actualizează rolul unui utilizator (admin only)
+// Update user role (admin only)
 export const updateUserRole = async (req, res, next) => {
   try {
     const { role } = req.body;
     
     if (!role || !['user', 'admin'].includes(role)) {
-      return res.status(400).json({ error: 'Rolul trebuie să fie "user" sau "admin"' });
+      return res.status(400).json({ error: 'Role must be "user" or "admin"' });
     }
     
     const query = {
@@ -45,7 +46,7 @@ export const updateUserRole = async (req, res, next) => {
     const result = await db.query(query);
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Utilizatorul nu a fost găsit' });
+      return res.status(404).json({ error: 'User not found' });
     }
     
     res.json({ user: result.rows[0] });
@@ -54,12 +55,12 @@ export const updateUserRole = async (req, res, next) => {
   }
 };
 
-// Șterge un utilizator (admin only)
+// Delete user (admin only)
 export const deleteUser = async (req, res, next) => {
   try {
-    // Nu permitem ștergerea propriului cont
+    // Don't allow deleting your own account
     if (req.params.id === req.user.id) {
-      return res.status(400).json({ error: 'Nu poți șterge propriul cont' });
+      return res.status(400).json({ error: 'You cannot delete your own account' });
     }
     
     const query = {
@@ -70,10 +71,10 @@ export const deleteUser = async (req, res, next) => {
     const result = await db.query(query);
     
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Utilizatorul nu a fost găsit' });
+      return res.status(404).json({ error: 'User not found' });
     }
     
-    res.json({ message: 'Utilizatorul a fost șters cu succes' });
+    res.json({ message: 'User deleted successfully' });
   } catch (error) {
     next(error);
   }
@@ -82,22 +83,22 @@ export const deleteUser = async (req, res, next) => {
 // Dashboard stats (admin only)
 export const getDashboardStats = async (req, res, next) => {
   try {
-    // Numărul total de utilizatori
+    // Total number of users
     const usersQuery = {
       text: 'SELECT COUNT(*) FROM users'
     };
     
-    // Numărul total de evenimente
+    // Total number of events
     const eventsQuery = {
       text: 'SELECT COUNT(*) FROM events'
     };
     
-    // Numărul total de bilete vândute
+    // Total number of tickets sold
     const ticketsQuery = {
       text: "SELECT COUNT(*) FROM tickets WHERE status = 'purchased'"
     };
     
-    // Numărul de categorii
+    // Number of categories
     const categoriesQuery = {
       text: 'SELECT COUNT(*) FROM categories'
     };

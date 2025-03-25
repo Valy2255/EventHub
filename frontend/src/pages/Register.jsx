@@ -25,14 +25,14 @@ export default function Register() {
   const { register, socialLogin } = useAuth();
   const navigate = useNavigate();
   
-  // Validare în timp real
+  // Real-time validation
   useEffect(() => {
-    // Validare nume
+    // Name validation
     if (formData.name.trim().length > 0) {
       if (formData.name.trim().length < 3) {
         setValidation(prev => ({
           ...prev, 
-          name: { valid: false, message: 'Numele trebuie să aibă cel puțin 3 caractere' }
+          name: { valid: false, message: 'Name must be at least 3 characters long' }
         }));
       } else {
         setValidation(prev => ({
@@ -42,13 +42,13 @@ export default function Register() {
       }
     }
     
-    // Validare email
+    // Email validation
     if (formData.email.trim().length > 0) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(formData.email)) {
         setValidation(prev => ({
           ...prev, 
-          email: { valid: false, message: 'Adresa de email nu este validă' }
+          email: { valid: false, message: 'Please enter a valid email address' }
         }));
       } else {
         setValidation(prev => ({
@@ -58,12 +58,12 @@ export default function Register() {
       }
     }
     
-    // Validare parolă
+    // Password validation
     if (formData.password.length > 0) {
       if (formData.password.length < 6) {
         setValidation(prev => ({
           ...prev, 
-          password: { valid: false, message: 'Parola trebuie să aibă cel puțin 6 caractere' }
+          password: { valid: false, message: 'Password must be at least 6 characters long' }
         }));
       } else {
         setValidation(prev => ({
@@ -73,12 +73,12 @@ export default function Register() {
       }
     }
     
-    // Validare confirmare parolă
+    // Confirm password validation
     if (formData.confirmPassword.length > 0) {
       if (formData.confirmPassword !== formData.password) {
         setValidation(prev => ({
           ...prev, 
-          confirmPassword: { valid: false, message: 'Parolele nu coincid' }
+          confirmPassword: { valid: false, message: 'Passwords do not match' }
         }));
       } else {
         setValidation(prev => ({
@@ -110,7 +110,7 @@ export default function Register() {
     setError('');
     
     if (!isFormValid()) {
-      setError('Te rugăm să corectezi erorile din formular');
+      setError('Please correct the errors in the form');
       return;
     }
     
@@ -123,14 +123,14 @@ export default function Register() {
         password: formData.password
       });
       
-      // Redirecționare către login cu mesaj de succes
+      // Redirect to login with success message
       navigate('/login', { 
         state: { 
-          successMessage: 'Cont creat cu succes! Te poți autentifica acum.' 
+          successMessage: 'Account created successfully! You can now log in.' 
         } 
       });
     } catch (err) {
-      setError(err.response?.data?.error || 'A apărut o eroare la înregistrare');
+      setError(err.response?.data?.error || 'An error occurred during registration');
     } finally {
       setLoading(false);
     }
@@ -163,12 +163,12 @@ export default function Register() {
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-md">
         <div className="text-center">
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            Înregistrare
+            Register
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Sau{' '}
+            Or{' '}
             <Link to="/login" className="font-medium text-purple-600 hover:text-purple-500">
-              autentifică-te în contul tău
+              sign in to your account
             </Link>
           </p>
         </div>
@@ -182,7 +182,7 @@ export default function Register() {
         <form className="mt-8 space-y-6" onSubmit={handleRegister}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="name" className="sr-only">Nume</label>
+              <label htmlFor="name" className="sr-only">Name</label>
               <div className="flex items-center relative">
                 <div className="absolute left-3 text-gray-400">
                   <FaUser />
@@ -199,7 +199,7 @@ export default function Register() {
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
                   } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
-                  placeholder="Nume complet"
+                  placeholder="Full name"
                 />
                 {renderValidationIcon('name')}
               </div>
@@ -207,7 +207,7 @@ export default function Register() {
             </div>
             
             <div>
-              <label htmlFor="email-address" className="sr-only">Adresa de email</label>
+              <label htmlFor="email-address" className="sr-only">Email address</label>
               <div className="flex items-center relative">
                 <div className="absolute left-3 text-gray-400">
                   <FaEnvelope />
@@ -225,7 +225,7 @@ export default function Register() {
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
                   } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
-                  placeholder="Adresa de email"
+                  placeholder="Email address"
                 />
                 {renderValidationIcon('email')}
               </div>
@@ -233,7 +233,7 @@ export default function Register() {
             </div>
             
             <div>
-              <label htmlFor="password" className="sr-only">Parola</label>
+              <label htmlFor="password" className="sr-only">Password</label>
               <div className="flex items-center relative">
                 <div className="absolute left-3 text-gray-400">
                   <FaLock />
@@ -251,7 +251,7 @@ export default function Register() {
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
                   } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
-                  placeholder="Parola"
+                  placeholder="Password"
                 />
                 {renderValidationIcon('password')}
               </div>
@@ -259,7 +259,7 @@ export default function Register() {
             </div>
             
             <div>
-              <label htmlFor="confirmPassword" className="sr-only">Confirmă parola</label>
+              <label htmlFor="confirmPassword" className="sr-only">Confirm password</label>
               <div className="flex items-center relative">
                 <div className="absolute left-3 text-gray-400">
                   <FaLock />
@@ -277,7 +277,7 @@ export default function Register() {
                       ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
                       : 'border-gray-300 focus:ring-purple-500 focus:border-purple-500'
                   } rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:z-10 sm:text-sm`}
-                  placeholder="Confirmă parola"
+                  placeholder="Confirm password"
                 />
                 {renderValidationIcon('confirmPassword')}
               </div>
@@ -293,7 +293,7 @@ export default function Register() {
                 isFormValid() ? 'bg-purple-600 hover:bg-purple-700' : 'bg-purple-400 cursor-not-allowed'
               } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors`}
             >
-              {loading ? 'Se procesează...' : 'Înregistrare'}
+              {loading ? 'Processing...' : 'Register'}
             </button>
           </div>
         </form>
@@ -304,7 +304,7 @@ export default function Register() {
               <div className="w-full border-t border-gray-300"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">Sau continuă cu</span>
+              <span className="px-2 bg-white text-gray-500">Or continue with</span>
             </div>
           </div>
 

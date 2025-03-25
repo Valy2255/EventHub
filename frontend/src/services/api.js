@@ -10,17 +10,17 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Adăugare interceptor pentru a atașa tokenul la cereri
+// Add interceptor to attach token to requests
 api.interceptors.request.use(
   (config) => {
-    // Verificăm întâi în sessionStorage
+    // Check sessionStorage first
     let token = sessionStorage.getItem("token");
 
-    // Dacă nu există în sessionStorage, verificăm în localStorage
+    // If not in sessionStorage, check localStorage
     if (!token) {
       const authType = localStorage.getItem("authType");
 
-      // Folosim token-ul din localStorage doar dacă tipul de autentificare este persistent
+      // Use token from localStorage only if auth type is persistent
       if (authType === "persistent") {
         token = localStorage.getItem("token");
       }
@@ -37,13 +37,15 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor pentru a gestiona erorile de autentificare
+// Interceptor to handle authentication errors
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Delogăm utilizatorul dacă primim 401 Unauthorized
+      // Log out user if 401 Unauthorized is received
       localStorage.removeItem("token");
+      sessionStorage.removeItem("token");
+      localStorage.removeItem("authType");
       window.location.href = "/login";
     }
     return Promise.reject(error);

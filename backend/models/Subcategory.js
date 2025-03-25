@@ -67,3 +67,27 @@ export const remove = async (id) => {
   const result = await db.query(query);
   return result.rows[0];
 };
+
+export const findBySlug = async (categoryId, slug) => {
+  const query = {
+    text: 'SELECT * FROM subcategories WHERE category_id = $1 AND slug = $2',
+    values: [categoryId, slug]
+  };
+  
+  const result = await db.query(query);
+  return result.rows[0];
+};
+
+export const getEvents = async (subcategoryId) => {
+  const query = {
+    text: `
+      SELECT e.* FROM events e
+      WHERE e.subcategory_id = $1
+      ORDER BY e.date DESC
+    `,
+    values: [subcategoryId]
+  };
+  
+  const result = await db.query(query);
+  return result.rows;
+};

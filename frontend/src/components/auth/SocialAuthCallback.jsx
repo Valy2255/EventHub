@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import api from '../../services/api';
 
 export default function SocialAuthCallback() {
-  const [status, setStatus] = useState('Procesare autentificare...');
+  const [status, setStatus] = useState('Processing authentication...');
   const navigate = useNavigate();
   const location = useLocation();
   const { setUser } = useAuth();
@@ -18,29 +18,29 @@ export default function SocialAuthCallback() {
         const error = params.get('error');
         
         if (error) {
-          setStatus('Autentificare eșuată');
-          setTimeout(() => navigate('/login', { state: { error: 'Autentificare eșuată' } }), 2000);
+          setStatus('Authentication failed');
+          setTimeout(() => navigate('/login', { state: { error: 'Authentication failed' } }), 2000);
           return;
         }
         
         if (!token) {
-          setStatus('Token invalid');
+          setStatus('Invalid token');
           setTimeout(() => navigate('/login'), 2000);
           return;
         }
         
-        // Salvăm token-ul
+        // Save token
         localStorage.setItem('token', token);
         
-        // Obținem informațiile utilizatorului
+        // Get user information
         const response = await api.get('/auth/me');
         setUser(response.data.user);
         
-        setStatus('Autentificare reușită! Redirecționare...');
+        setStatus('Authentication successful! Redirecting...');
         setTimeout(() => navigate('/'), 1500);
       } catch (error) {
-        console.error('Eroare la procesarea callback-ului:', error);
-        setStatus('A apărut o eroare. Redirecționare...');
+        console.error('Error processing callback:', error);
+        setStatus('An error occurred. Redirecting...');
         setTimeout(() => navigate('/login'), 2000);
       }
     };

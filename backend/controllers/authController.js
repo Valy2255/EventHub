@@ -8,16 +8,16 @@ export const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
     
-    // Verifică dacă utilizatorul există deja
+    // Check if user already exists
     const existingUser = await User.findByEmail(email);
     if (existingUser) {
-      return res.status(409).json({ error: 'Există deja un utilizator cu acest email' });
+      return res.status(409).json({ error: 'A user with this email already exists' });
     }
     
-    // Creare utilizator nou
+    // Create new user
     const newUser = await User.create({ name, email, password });
     
-    // Generare token
+    // Generate token
     const token = jwtGenerator(newUser.id);
     
     return res.status(201).json({
@@ -33,22 +33,22 @@ export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     
-    // Verifică dacă utilizatorul există
+    // Check if user exists
     const user = await User.findByEmail(email);
     if (!user) {
-      return res.status(401).json({ error: 'Email sau parolă incorectă' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
     
-    // Verifică parola
+    // Check password
     const validPassword = await User.comparePassword(password, user.password);
     if (!validPassword) {
-      return res.status(401).json({ error: 'Email sau parolă incorectă' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
     
-    // Generare token
+    // Generate token
     const token = jwtGenerator(user.id);
     
-    // Exclude parola din răspuns
+    // Exclude password from response
     const { password: _, ...userWithoutPassword } = user;
     
     return res.status(200).json({
@@ -64,7 +64,7 @@ export const getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({ error: 'Utilizatorul nu a fost găsit' });
+      return res.status(404).json({ error: 'User not found' });
     }
     
     return res.status(200).json({ user });
@@ -75,7 +75,7 @@ export const getMe = async (req, res, next) => {
 
 export const socialLoginCallback = (req, res) => {
   try {
-    // req.user este utilizatorul autentificat prin Passport
+    // req.user is the user authenticated through Passport
     const token = jwtGenerator(req.user.id);
     
     // Use config.cors.origin instead of process.env.CLIENT_URL
@@ -84,7 +84,7 @@ export const socialLoginCallback = (req, res) => {
     // Log the redirect for debugging
     console.log(`Redirecting to: ${redirectURL}`);
     
-    // Redirecționează către frontend cu tokenul
+    // Redirect to frontend with token
     res.redirect(redirectURL);
   } catch (error) {
     console.error('Error in social login callback:', error);
@@ -96,65 +96,65 @@ export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    // Verifică dacă utilizatorul există
+    // Check if user exists
     const user = await User.findByEmail(email);
     if (!user) {
-      return res.status(404).json({ error: 'Nu există un utilizator cu această adresă de email' });
+      return res.status(404).json({ error: 'No user exists with this email address' });
     }
 
-    // Generează token unic
+    // Generate unique token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpire = Date.now() + 3600000; // 1 oră
+    const resetTokenExpire = Date.now() + 3600000; // 1 hour
 
-    // Salvează token-ul în baza de date
+    // Save token to database
     await User.updateResetToken(user.id, resetToken, resetTokenExpire);
 
-    // Creează link-ul de resetare
+    // Create reset link
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
 
-    // Trimite email-ul
+    // Send email
     const message = `
-      <h1>Resetare parolă</h1>
-      <p>Ai solicitat resetarea parolei. Accesează link-ul de mai jos pentru a-ți seta o nouă parolă:</p>
-      <a href="${resetUrl}" style="display: inline-block; background-color: #9333ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Resetează parola</a>
-      <p>Link-ul este valabil timp de o oră. Dacă nu ai solicitat resetarea parolei, ignoră acest email.</p>
+      <h1>Password Reset</h1>
+      <p>You requested a password reset. Click the link below to set a new password:</p>
+      <a href="${resetUrl}" style="display: inline-block; background-color: #9333ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
+      <p>This link is valid for one hour. If you did not request a password reset, please ignore this email.</p>
     `;
 
     try {
       await sendEmail({
         to: user.email,
-        subject: 'Resetare parolă EventHub',
+        subject: 'EventHub Password Reset',
         html: message
       });
 
-      res.status(200).json({ message: 'Email-ul a fost trimis' });
+      res.status(200).json({ message: 'Email has been sent' });
     } catch (error) {
-      // Șterge token-ul dacă email-ul nu poate fi trimis
+      // Delete token if email cannot be sent
       await User.updateResetToken(user.id, null, null);
-      return res.status(500).json({ error: 'Email-ul nu a putut fi trimis' });
+      return res.status(500).json({ error: 'Email could not be sent' });
     }
   } catch (error) {
     next(error);
   }
 };
 
-// Verifică token-ul de resetare
+// Verify reset token
 export const verifyResetToken = async (req, res, next) => {
   try {
     const { token } = req.params;
     
     const user = await User.findByResetToken(token);
     if (!user || user.reset_token_expire < Date.now()) {
-      return res.status(400).json({ error: 'Token invalid sau expirat' });
+      return res.status(400).json({ error: 'Invalid or expired token' });
     }
 
-    res.status(200).json({ message: 'Token valid' });
+    res.status(200).json({ message: 'Valid token' });
   } catch (error) {
     next(error);
   }
 };
 
-// Resetează parola
+// Reset password
 export const resetPassword = async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -162,13 +162,13 @@ export const resetPassword = async (req, res, next) => {
 
     const user = await User.findByResetToken(token);
     if (!user || user.reset_token_expire < Date.now()) {
-      return res.status(400).json({ error: 'Token invalid sau expirat' });
+      return res.status(400).json({ error: 'Invalid or expired token' });
     }
 
-    // Actualizează parola și șterge token-ul de resetare
+    // Update password and delete reset token
     await User.updatePassword(user.id, password);
 
-    res.status(200).json({ message: 'Parola a fost actualizată cu succes' });
+    res.status(200).json({ message: 'Password has been updated successfully' });
   } catch (error) {
     next(error);
   }
