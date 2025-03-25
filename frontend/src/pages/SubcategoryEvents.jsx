@@ -1,8 +1,9 @@
 // src/pages/SubcategoryEvents.jsx
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { FaMapMarkerAlt, FaCalendarAlt, FaTicketAlt, FaArrowLeft } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaCalendarAlt, FaTicketAlt } from 'react-icons/fa';
 import api from '../services/api';
+import CategoryHeader from '../components/layout/CategoryHeader';
 
 export default function SubcategoryEvents() {
   const { categorySlug, subcategorySlug } = useParams();
@@ -33,13 +34,16 @@ export default function SubcategoryEvents() {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-300 rounded w-1/4 mb-6"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((item) => (
-              <div key={item} className="bg-gray-300 h-64 rounded-lg"></div>
-            ))}
+      <div>
+        <div className="h-16 bg-gray-800 animate-pulse border-t border-gray-700"></div>
+        <div className="container mx-auto px-4 py-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-300 rounded w-1/4 mb-6"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((item) => (
+                <div key={item} className="bg-gray-300 h-64 rounded-lg"></div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -71,62 +75,61 @@ export default function SubcategoryEvents() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
-        <Link to={`/events/category/${categorySlug}`} className="inline-flex items-center text-purple-600 hover:text-purple-800">
-          <FaArrowLeft className="mr-2" /> Back to {category.name}
-        </Link>
-      </div>
+    <div>
+      {/* Include Category Header Component */}
+      <CategoryHeader 
+        categoryData={category} 
+        subcategoryData={subcategory} 
+      />
       
-      <h1 className="text-3xl font-bold mb-2">{subcategory.name}</h1>
-      <p className="text-gray-600 mb-6">{subcategory.description || `Explore events in the ${subcategory.name} category`}</p>
-  
-      {events.length === 0 ? (
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold mb-2">No events available in this subcategory</h2>
-          <p className="text-gray-500">Check back later for updates or try another subcategory.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {events.map((event) => (
-            <div key={event.id} className="bg-white rounded-lg shadow-md overflow-hidden group hover:shadow-xl transition-shadow duration-300">
-              <div className="relative overflow-hidden">
-                <img
-                  src={event.image_url || 'https://placehold.co/600x400/purple/white?text=Event+Image'}
-                  alt={event.name}
-                  className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
-                />
+      <div className="container mx-auto px-4 py-8">
+        {events.length === 0 ? (
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold mb-2">No events available in this subcategory</h2>
+            <p className="text-gray-500">Check back later for updates or try another subcategory.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {events.map((event) => (
+              <div key={event.id} className="bg-white rounded-lg shadow-md overflow-hidden group hover:shadow-xl transition-shadow duration-300">
+                <div className="relative overflow-hidden">
+                  <img
+                    src={event.image_url || 'https://placehold.co/600x400/purple/white?text=Event+Image'}
+                    alt={event.name}
+                    className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                </div>
+                
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold mb-2 text-gray-800">{event.name}</h3>
+                  
+                  <div className="flex items-center text-gray-600 mb-1 text-sm">
+                    <FaCalendarAlt className="mr-2" />
+                    <span>{new Date(event.date).toLocaleDateString()}</span>
+                  </div>
+                  
+                  <div className="flex items-center text-gray-600 mb-3 text-sm">
+                    <FaMapMarkerAlt className="mr-2" />
+                    <span>{event.venue}, {event.city}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mt-4">
+                    <span className="font-bold text-purple-700">
+                      From {event.min_price} RON
+                    </span>
+                    <Link
+                      to={`/events/${event.id}`}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md inline-flex items-center transition-colors"
+                    >
+                      <FaTicketAlt className="mr-1" /> Details
+                    </Link>
+                  </div>
+                </div>
               </div>
-              
-              <div className="p-4">
-                <h3 className="text-lg font-semibold mb-2 text-gray-800">{event.name}</h3>
-                
-                <div className="flex items-center text-gray-600 mb-1 text-sm">
-                  <FaCalendarAlt className="mr-2" />
-                  <span>{new Date(event.date).toLocaleDateString()}</span>
-                </div>
-                
-                <div className="flex items-center text-gray-600 mb-3 text-sm">
-                  <FaMapMarkerAlt className="mr-2" />
-                  <span>{event.venue}, {event.city}</span>
-                </div>
-                
-                <div className="flex justify-between items-center mt-4">
-                  <span className="font-bold text-purple-700">
-                    From {event.min_price} RON
-                  </span>
-                  <Link
-                    to={`/events/${event.id}`}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md inline-flex items-center transition-colors"
-                  >
-                    <FaTicketAlt className="mr-1" /> Details
-                  </Link>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

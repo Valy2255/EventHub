@@ -147,3 +147,75 @@ export const getEventsBySubcategory = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get a single category by slug (public endpoint)
+export const getCategoryBySlug = async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const category = await Category.findBySlug(slug);
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    res.json({ category });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get featured events for a category by slug
+export const getFeaturedEventsByCategory = async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const category = await Category.findBySlug(slug);
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    const events = await Category.getFeaturedEvents(category.id);
+    res.json({ events });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get paginated events for a category by slug
+export const getEventsByCategoryPaginated = async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    let { page = 1, limit = 20 } = req.query;
+    page = parseInt(page);
+    limit = parseInt(limit);
+    const category = await Category.findBySlug(slug);
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+    const offset = (page - 1) * limit;
+    const { events, totalCount } = await Category.getEventsPaginated(category.id, limit, offset);
+    const totalPages = Math.ceil(totalCount / limit);
+    res.json({
+      events,
+      totalPages
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSubcategoriesForCategory = async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+
+    // 1) Check if category exists
+    const category = await Category.findBySlug(slug);
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    // 2) Fetch subcategories for this category
+    const subcategories = await Subcategory.getAll(category.id);
+
+    // 3) Return them
+    res.json({ subcategories });
+  } catch (error) {
+    next(error);
+  }
+};

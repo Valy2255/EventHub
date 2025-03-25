@@ -7,10 +7,17 @@ const router = express.Router();
 // Obține toate categoriile cu subcategoriile lor
 router.get('/', categoryController.getAllCategoriesWithSubcategories);
 
-// Obține evenimente după categorie
-router.get('/:slug', categoryController.getEventsByCategory);
+// Public endpoints using slugs
+// backend/routes/categoryRoutes.js
+router.get('/:slug', categoryController.getCategoryBySlug);
+router.get('/:slug/events/featured', categoryController.getFeaturedEventsByCategory);
+router.get('/:slug/events', categoryController.getEventsByCategoryPaginated);
 
-// Obține evenimente după subcategorie
+// New route to fetch subcategories by category slug
+router.get('/:slug/subcategories', categoryController.getSubcategoriesForCategory);
+
+
+// Endpoint for subcategory events
 router.get('/:categorySlug/:subcategorySlug', categoryController.getEventsBySubcategory);
 
 export default router;

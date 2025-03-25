@@ -82,3 +82,46 @@ export const getEvents = async (categoryId) => {
   const result = await db.query(query);
   return result.rows;
 };
+
+// Get featured events for a category (e.g. top 2 based on some criteria)
+export const getFeaturedEvents = async (categoryId) => {
+  const query = {
+    text: `
+      SELECT * FROM events
+      WHERE category_id = $1
+      ORDER BY date DESC
+      LIMIT 2
+    `,
+    values: [categoryId]
+  };
+  const result = await db.query(query);
+  return result.rows;
+};
+
+// Get paginated events for a category
+export const getEventsPaginated = async (categoryId, limit, offset) => {
+  // Query to fetch events with pagination
+  const eventsQuery = {
+    text: `
+      SELECT * FROM events
+      WHERE category_id = $1
+      ORDER BY date ASC
+      LIMIT $2 OFFSET $3
+    `,
+    values: [categoryId, limit, offset]
+  };
+  const resultEvents = await db.query(eventsQuery);
+
+  // Query to count total events
+  const countQuery = {
+    text: `
+      SELECT COUNT(*) AS total FROM events
+      WHERE category_id = $1
+    `,
+    values: [categoryId]
+  };
+  const resultCount = await db.query(countQuery);
+  const totalCount = parseInt(resultCount.rows[0].total, 10);
+
+  return { events: resultEvents.rows, totalCount };
+};
