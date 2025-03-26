@@ -10,6 +10,7 @@ import ResetPassword from "./pages/ResetPassword";
 import EventsPage from "./pages/EventsPage";
 import CategoryEvents from "./pages/CategoryEvents";
 import SubcategoryEvents from "./pages/SubcategoryEvents";
+import SearchResultsPage from "./pages/SearchResultsPage";
 import NotFound from "./pages/NotFound";
 import SocialAuthCallback from "./components/auth/SocialAuthCallback";
 import PrivateRoute from "./components/routing/PrivateRoute";
@@ -34,6 +35,9 @@ function App() {
             {/* Routes for categories and subcategories */}
             <Route path="/events/category/:slug" element={<CategoryEvents />} />
             <Route path="/events/category/:categorySlug/:subcategorySlug" element={<SubcategoryEvents />} />
+            
+            {/* Search results page */}
+            <Route path="/events/search" element={<SearchResultsPage />} />
             
             {/* Protected routes */}
             <Route element={<PrivateRoute />}>

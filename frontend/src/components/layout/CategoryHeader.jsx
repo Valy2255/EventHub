@@ -1,7 +1,12 @@
 // src/components/layout/CategoryHeader.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { FaSearch, FaFilter, FaCalendarAlt, FaMapMarkerAlt, FaChevronDown } from 'react-icons/fa';
+import { 
+  FaSearch, 
+  FaCalendarAlt, 
+  FaMapMarkerAlt, 
+  FaChevronDown 
+} from 'react-icons/fa';
 import api from '../../services/api';
 
 export default function CategoryHeader({ categoryData, subcategoryData }) {
@@ -10,6 +15,13 @@ export default function CategoryHeader({ categoryData, subcategoryData }) {
   const [locationFilter, setLocationFilter] = useState('');
   const [subcategories, setSubcategories] = useState([]);
   const [isSubcategoryDropdownOpen, setIsSubcategoryDropdownOpen] = useState(false);
+  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  
+  const subcategoryDropdownRef = useRef(null);
+  const dateDropdownRef = useRef(null);
+  const locationDropdownRef = useRef(null);
+  
   const { categorySlug, subcategorySlug } = useParams();
   const navigate = useNavigate();
 
@@ -27,6 +39,26 @@ export default function CategoryHeader({ categoryData, subcategoryData }) {
       fetchSubcategories();
     }
   }, [categorySlug]);
+
+  // Handle clicks outside dropdowns
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (subcategoryDropdownRef.current && !subcategoryDropdownRef.current.contains(event.target)) {
+        setIsSubcategoryDropdownOpen(false);
+      }
+      if (dateDropdownRef.current && !dateDropdownRef.current.contains(event.target)) {
+        setIsDateDropdownOpen(false);
+      }
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
+        setIsLocationDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Use data passed in props if available
   const category = categoryData || { name: '', description: '' };
@@ -59,8 +91,16 @@ export default function CategoryHeader({ categoryData, subcategoryData }) {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    // Implement search functionality
-    console.log('Search:', searchText, 'Date:', dateFilter, 'Location:', locationFilter);
+    // Construct search parameters
+    const params = new URLSearchParams();
+    if (locationFilter) params.append('location', locationFilter);
+    if (dateFilter) params.append('date', dateFilter);
+    if (categorySlug) params.append('category', categorySlug);
+    if (subcategorySlug) params.append('subcategory', subcategorySlug);
+    if (searchText) params.append('q', searchText);
+    
+    // Navigate to search results page
+    navigate(`/events/search?${params.toString()}`);
   };
 
   return (
@@ -90,53 +130,147 @@ export default function CategoryHeader({ categoryData, subcategoryData }) {
       {/* Filter section */}
       <div className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-wrap items-center gap-4">
+          <form onSubmit={handleSearch} className="flex items-center gap-4">
             {/* Location filter */}
-            <div className="flex-grow md:flex-grow-0">
-              <div className="flex items-center">
+            <div 
+              ref={locationDropdownRef}
+              className="relative w-56"
+            >
+              <div 
+                className="flex items-center border rounded p-2 cursor-pointer"
+                onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+              >
                 <FaMapMarkerAlt className="text-gray-500 mr-2" />
-                <select 
-                  className="p-2 border rounded min-w-[150px]"
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                >
-                  <option value="">All Locations</option>
-                  <option value="bucharest">Bucharest</option>
-                  <option value="cluj-napoca">Cluj-Napoca</option>
-                  <option value="timisoara">Timisoara</option>
-                </select>
+                <span className="text-gray-800">
+                  {locationFilter || "All Locations"}
+                </span>
+                <FaChevronDown className={`ml-auto text-gray-500 ${isLocationDropdownOpen ? "transform rotate-180" : ""}`} />
               </div>
+              
+              {isLocationDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30">
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                    onClick={() => {
+                      setLocationFilter('');
+                      setIsLocationDropdownOpen(false);
+                    }}
+                  >
+                    All Locations
+                  </div>
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                    onClick={() => {
+                      setLocationFilter('Bucharest');
+                      setIsLocationDropdownOpen(false);
+                    }}
+                  >
+                    Bucharest
+                  </div>
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                    onClick={() => {
+                      setLocationFilter('Cluj-Napoca');
+                      setIsLocationDropdownOpen(false);
+                    }}
+                  >
+                    Cluj-Napoca
+                  </div>
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => {
+                      setLocationFilter('Timisoara');
+                      setIsLocationDropdownOpen(false);
+                    }}
+                  >
+                    Timisoara
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Date filter */}
-            <div>
-              <div className="flex items-center">
+            <div 
+              ref={dateDropdownRef}
+              className="relative w-56"
+            >
+              <div 
+                className="flex items-center border rounded p-2 cursor-pointer"
+                onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
+              >
                 <FaCalendarAlt className="text-gray-500 mr-2" />
-                <select 
-                  className="p-2 border rounded min-w-[150px]"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                >
-                  <option value="">All Dates</option>
-                  <option value="this-weekend">This Weekend</option>
-                  <option value="today">Today</option>
-                  <option value="tomorrow">Tomorrow</option>
-                  <option value="this-week">This Week</option>
-                  <option value="this-month">This Month</option>
-                </select>
+                <span className="text-gray-800">
+                  {dateFilter || "All Dates"}
+                </span>
+                <FaChevronDown className={`ml-auto text-gray-500 ${isDateDropdownOpen ? "transform rotate-180" : ""}`} />
               </div>
+              
+              {isDateDropdownOpen && (
+                <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30">
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                    onClick={() => {
+                      setDateFilter('');
+                      setIsDateDropdownOpen(false);
+                    }}
+                  >
+                    All Dates
+                  </div>
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                    onClick={() => {
+                      setDateFilter('Today');
+                      setIsDateDropdownOpen(false);
+                    }}
+                  >
+                    Today
+                  </div>
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                    onClick={() => {
+                      setDateFilter('This Weekend');
+                      setIsDateDropdownOpen(false);
+                    }}
+                  >
+                    This Weekend
+                  </div>
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                    onClick={() => {
+                      setDateFilter('This Week');
+                      setIsDateDropdownOpen(false);
+                    }}
+                  >
+                    This Week
+                  </div>
+                  <div 
+                    className="p-3 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => {
+                      setDateFilter('This Month');
+                      setIsDateDropdownOpen(false);
+                    }}
+                  >
+                    This Month
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Subcategory filter dropdown - styled like the image */}
+            {/* Subcategory filter dropdown */}
             {categorySlug && subcategories.length > 0 && (
-              <div className="relative">
-                <button 
+              <div 
+                ref={subcategoryDropdownRef}
+                className="relative w-64"
+              >
+                <div 
+                  className="flex items-center border rounded p-2 cursor-pointer"
                   onClick={() => setIsSubcategoryDropdownOpen(!isSubcategoryDropdownOpen)}
-                  className="flex items-center justify-between w-64 p-2 border rounded bg-white"
                 >
-                  <span>{subcategory ? subcategory.name : `All ${category.name}`}</span>
-                  <FaChevronDown className={isSubcategoryDropdownOpen ? "transform rotate-180" : ""} />
-                </button>
+                  <span className="text-gray-800">
+                    {subcategory ? subcategory.name : `All ${category.name}`}
+                  </span>
+                  <FaChevronDown className={`ml-auto text-gray-500 ${isSubcategoryDropdownOpen ? "transform rotate-180" : ""}`} />
+                </div>
                 
                 {isSubcategoryDropdownOpen && (
                   <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30 max-h-80 overflow-y-auto">
@@ -164,8 +298,8 @@ export default function CategoryHeader({ categoryData, subcategoryData }) {
             )}
 
             {/* Search box */}
-            <div className="flex-grow md:ml-auto">
-              <form onSubmit={handleSearch} className="flex">
+            <div className="flex-grow">
+              <div className="flex">
                 <input
                   type="text"
                   placeholder="Search events"
@@ -179,9 +313,9 @@ export default function CategoryHeader({ categoryData, subcategoryData }) {
                 >
                   <FaSearch />
                 </button>
-              </form>
+              </div>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </div>
