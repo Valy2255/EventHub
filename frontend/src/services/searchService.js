@@ -25,6 +25,8 @@ const searchService = {
    */
   addToRecentlyViewed: (event) => {
     try {
+      if (!event || !event.id) return;
+      
       const recentlyViewed = searchService.getRecentlyViewedEvents();
       
       // Check if event already exists
@@ -35,13 +37,18 @@ const searchService = {
         recentlyViewed.splice(existingIndex, 1);
       }
       
-      // Add to beginning of array
-      recentlyViewed.unshift({
+      // Create event object with consistent properties
+      const eventToAdd = {
         id: event.id,
         name: event.name,
         category: typeof event.category === 'object' ? event.category.name : event.category,
-        image_url: event.image_url
-      });
+        image_url: event.image_url,
+        venue: event.venue || '',
+        city: event.city || ''
+      };
+      
+      // Add to beginning of array
+      recentlyViewed.unshift(eventToAdd);
       
       // Keep only the most recent 5 events
       const trimmedList = recentlyViewed.slice(0, 5);
@@ -52,8 +59,11 @@ const searchService = {
       searchService.trackEventView(event.id).catch(error => {
         console.error('Error tracking event view:', error);
       });
+      
+      return trimmedList;
     } catch (error) {
       console.error('Error adding to recently viewed events:', error);
+      return searchService.getRecentlyViewedEvents();
     }
   },
 
@@ -79,8 +89,10 @@ const searchService = {
   clearRecentlyViewed: () => {
     try {
       localStorage.removeItem('recentlyViewedEvents');
+      return [];
     } catch (error) {
       console.error('Error clearing recently viewed events:', error);
+      return [];
     }
   },
 
@@ -91,7 +103,15 @@ const searchService = {
    */
   searchEvents: async (params) => {
     try {
-      const response = await api.get('/search/events', { params });
+      // Clean up params by removing empty values to avoid unnecessary query parameters
+      const cleanParams = {};
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          cleanParams[key] = value;
+        }
+      });
+      
+      const response = await api.get('/search/events', { params: cleanParams });
       return response.data;
     } catch (error) {
       console.error('Search API error:', error);
@@ -100,7 +120,7 @@ const searchService = {
   },
 
   /**
-   * Perform a quick search query for the header search bar
+   * Perform a quick search query for the header search bar and suggestions
    * @param {string} query - Search query text
    * @returns {Promise} Promise with search results
    */
@@ -126,6 +146,25 @@ const searchService = {
   trackEventView: async (eventId) => {
     try {
       const response = await api.post(`/search/track-view/${eventId}`);
+      
+      // If we get venue and city data from the server, update the localStorage entry
+      if (response.data?.success && response.data?.event) {
+        const event = response.data.event;
+        const recentlyViewed = searchService.getRecentlyViewedEvents();
+        
+        // Find existing event and update it with additional data
+        const existingIndex = recentlyViewed.findIndex(e => e.id === eventId);
+        if (existingIndex !== -1) {
+          recentlyViewed[existingIndex] = {
+            ...recentlyViewed[existingIndex],
+            venue: event.venue || recentlyViewed[existingIndex].venue,
+            city: event.city || recentlyViewed[existingIndex].city
+          };
+          
+          localStorage.setItem('recentlyViewedEvents', JSON.stringify(recentlyViewed));
+        }
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Error tracking event view:', error);

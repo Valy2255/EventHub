@@ -9,15 +9,36 @@ const router = express.Router();
  * Calculate distance between two coordinates using Haversine formula
  */
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Radius of Earth in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  
+  // Convert string coordinates to numbers if needed
+  const latitude1 = typeof lat1 === 'string' ? parseFloat(lat1) : lat1;
+  const longitude1 = typeof lon1 === 'string' ? parseFloat(lon1) : lon1;
+  const latitude2 = typeof lat2 === 'string' ? parseFloat(lat2) : lat2;
+  const longitude2 = typeof lon2 === 'string' ? parseFloat(lon2) : lon2;
+  
+  // Validation check
+  if (isNaN(latitude1) || isNaN(longitude1) || isNaN(latitude2) || isNaN(longitude2)) {
+    console.error('Invalid coordinates:', { lat1, lon1, lat2, lon2 });
+    return null;
+  }
+  
+  // Earth's radius in kilometers
+  const R = 6371;
+  
+  // Convert latitude and longitude from degrees to radians
+  const dLat = (latitude2 - latitude1) * Math.PI / 180;
+  const dLon = (longitude2 - longitude1) * Math.PI / 180;
+  
+  // Apply Haversine formula
   const a = 
     Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.cos(latitude1 * Math.PI / 180) * Math.cos(latitude2 * Math.PI / 180) * 
     Math.sin(dLon/2) * Math.sin(dLon/2); 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  return R * c; // Distance in km
+  const distance = R * c; // Distance in km
+  
+  return distance;
 };
 
 /**
@@ -26,7 +47,19 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
  * @access  Public
  */
 router.get('/events', asyncHandler(async (req, res) => {
-  const { location, date, q: query, lat, lng, category, subcategory } = req.query;
+  const { 
+    location, 
+    date, 
+    q: query, 
+    lat, 
+    lng, 
+    category, 
+    subcategory,
+    // Support for new date range parameters
+    startDate,
+    endDate,
+    specificDate
+  } = req.query;
   
   let sqlQuery = `
     SELECT e.*, c.name as category_name, c.slug as category_slug, 
@@ -59,17 +92,26 @@ router.get('/events', asyncHandler(async (req, res) => {
     queryParams.push(`%${location}%`);
   }
   
-  // Add date filter
-  if (date) {
-    let dateFilter;
+  // Handle date filtering with both legacy and new methods
+  if (startDate && endDate) {
+    // Use date range if provided
+    sqlQuery += ` AND e.date BETWEEN $${queryParams.length + 1} AND $${queryParams.length + 2}`;
+    queryParams.push(startDate);
+    queryParams.push(endDate);
+  } else if (specificDate) {
+    // Use specific date if provided
+    sqlQuery += ` AND e.date = $${queryParams.length + 1}`;
+    queryParams.push(specificDate);
+  } else if (date) {
+    // Legacy date filter
     const today = new Date();
     
     switch (date) {
       case 'Today':
       case 'today':
-        dateFilter = today.toISOString().split('T')[0];
+        const todayStr = today.toISOString().split('T')[0];
         sqlQuery += ` AND e.date = $${queryParams.length + 1}`;
-        queryParams.push(dateFilter);
+        queryParams.push(todayStr);
         break;
         
       case 'Tomorrow':
@@ -151,6 +193,11 @@ router.get('/events', asyncHandler(async (req, res) => {
         queryParams.push(lastDayOfNextMonth.toISOString().split('T')[0]);
         break;
       }
+      
+      case 'Custom Range':
+        // If we have a custom range but no startDate and endDate, we don't apply a filter
+        // This is handled by the startDate and endDate parameters, so we do nothing here
+        break;
     }
   }
   
@@ -249,19 +296,34 @@ router.get('/quick', asyncHandler(async (req, res) => {
     });
   }
   
-  // Simplified search query focused on just event name, venue, city
+  // Improved search query to handle partial matches from beginning of word
   const sqlQuery = `
     SELECT e.id, e.name, e.venue, e.city, e.date, e.image_url, 
            c.name as category_name, c.slug as category_slug
     FROM events e
     LEFT JOIN categories c ON e.category_id = c.id
-    WHERE (e.name ILIKE $1 OR e.venue ILIKE $1 OR e.city ILIKE $1)
+    WHERE (
+      e.name ILIKE $1 OR 
+      e.venue ILIKE $1 OR 
+      e.city ILIKE $1 OR
+      e.name ILIKE $2 OR 
+      e.venue ILIKE $2 OR 
+      e.city ILIKE $2
+    )
     AND e.status = 'active'
-    ORDER BY e.date ASC
+    ORDER BY
+      CASE 
+        WHEN e.name ILIKE $2 THEN 0  -- Exact match from start gets highest priority
+        WHEN e.venue ILIKE $2 THEN 1
+        WHEN e.city ILIKE $2 THEN 2
+        ELSE 3
+      END,
+      e.date ASC
     LIMIT 5
   `;
   
-  const { rows: events } = await db.query(sqlQuery, [`%${query}%`]);
+  // We use two types of matches: contains anywhere and starts with
+  const { rows: events } = await db.query(sqlQuery, [`%${query}%`, `${query}%`]);
   
   // Format events for response
   const formattedEvents = events.map(event => ({
@@ -291,7 +353,7 @@ router.post('/track-view/:eventId', asyncHandler(async (req, res) => {
   
   // Get basic event info to return to client
   const { rows } = await db.query(`
-    SELECT e.id, e.name, e.image_url, c.name as category_name
+    SELECT e.id, e.name, e.image_url, e.venue, e.city, c.name as category_name
     FROM events e
     LEFT JOIN categories c ON e.category_id = c.id
     WHERE e.id = $1

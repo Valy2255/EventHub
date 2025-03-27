@@ -23,11 +23,14 @@ export default function SearchResultsPage() {
         const query = {
           q: urlParams.get('q') || '',
           location: urlParams.get('location') || '',
-          date: urlParams.get('date') || '',
           lat: urlParams.get('lat') || null,
           lng: urlParams.get('lng') || null,
           category: urlParams.get('category') || '',
-          subcategory: urlParams.get('subcategory') || ''
+          subcategory: urlParams.get('subcategory') || '',
+          // Add support for date range
+          startDate: urlParams.get('startDate') || '',
+          endDate: urlParams.get('endDate') || '',
+          date: urlParams.get('date') || '' // Keep for backward compatibility
         };
         
         setSearchParams(query);
@@ -60,6 +63,14 @@ export default function SearchResultsPage() {
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const formattedHour = hour % 12 || 12;
     return `${formattedHour}:${minutes} ${ampm}`;
+  };
+
+  // Format date range for display
+  const formatDateRange = () => {
+    if (searchParams.startDate && searchParams.endDate) {
+      return `${formatDate(searchParams.startDate)} - ${formatDate(searchParams.endDate)}`;
+    }
+    return searchParams.date || '';
   };
 
   return (
@@ -97,9 +108,9 @@ export default function SearchResultsPage() {
                 Location: {searchParams.location}
               </div>
             )}
-            {searchParams.date && (
+            {(searchParams.startDate || searchParams.date) && (
               <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
-                Date: {searchParams.date}
+                Date: {formatDateRange()}
               </div>
             )}
             {searchParams.category && (
