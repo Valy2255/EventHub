@@ -44,7 +44,10 @@ const searchService = {
         category: typeof event.category === 'object' ? event.category.name : event.category,
         image_url: event.image_url,
         venue: event.venue || '',
-        city: event.city || ''
+        city: event.city || '',
+        // Store coordinates if available
+        latitude: event.latitude || null,
+        longitude: event.longitude || null
       };
       
       // Add to beginning of array
@@ -103,15 +106,38 @@ const searchService = {
    */
   searchEvents: async (params) => {
     try {
-      // Clean up params by removing empty values to avoid unnecessary query parameters
+      // Log the search parameters for debugging
+      console.log('Searching with params:', params);
+      
+      // Clean up params by removing empty values
       const cleanParams = {};
       Object.entries(params).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') {
-          cleanParams[key] = value;
+          // Format coordinates properly
+          if ((key === 'lat' || key === 'lng') && typeof value === 'number') {
+            cleanParams[key] = value.toFixed(6);
+          } else {
+            cleanParams[key] = value;
+          }
         }
       });
       
+      console.log('Clean params:', cleanParams);
+      
       const response = await api.get('/search/events', { params: cleanParams });
+      
+      // Extract distance information if available and format it
+      if (response.data && response.data.events) {
+        response.data.events = response.data.events.map(event => {
+          if (event.distance) {
+            // Round to 1 decimal place and add formatted distance string
+            event.distance = Math.round(event.distance * 10) / 10;
+            event.distanceFormatted = `${event.distance} km away`;
+          }
+          return event;
+        });
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Search API error:', error);
@@ -158,7 +184,10 @@ const searchService = {
           recentlyViewed[existingIndex] = {
             ...recentlyViewed[existingIndex],
             venue: event.venue || recentlyViewed[existingIndex].venue,
-            city: event.city || recentlyViewed[existingIndex].city
+            city: event.city || recentlyViewed[existingIndex].city,
+            // Add coordinates if available
+            latitude: event.latitude || recentlyViewed[existingIndex].latitude,
+            longitude: event.longitude || recentlyViewed[existingIndex].longitude
           };
           
           localStorage.setItem('recentlyViewedEvents', JSON.stringify(recentlyViewed));
@@ -171,6 +200,48 @@ const searchService = {
       // We suppress the error here as this is a non-critical operation
       return null;
     }
+  },
+  
+  /**
+   * Get distance between two coordinates in kilometers
+   * Uses Haversine formula to calculate distance
+   * @param {number} lat1 - Latitude of first point
+   * @param {number} lon1 - Longitude of first point  
+   * @param {number} lat2 - Latitude of second point
+   * @param {number} lon2 - Longitude of second point
+   * @returns {number|null} Distance in kilometers or null if invalid coordinates
+   */
+  calculateDistance: (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    
+    // Convert string coordinates to numbers if needed
+    const latitude1 = typeof lat1 === 'string' ? parseFloat(lat1) : lat1;
+    const longitude1 = typeof lon1 === 'string' ? parseFloat(lon1) : lon1;
+    const latitude2 = typeof lat2 === 'string' ? parseFloat(lat2) : lat2;
+    const longitude2 = typeof lon2 === 'string' ? parseFloat(lon2) : lon2;
+    
+    // Validation check
+    if (isNaN(latitude1) || isNaN(longitude1) || isNaN(latitude2) || isNaN(longitude2)) {
+      console.error('Invalid coordinates:', { lat1, lon1, lat2, lon2 });
+      return null;
+    }
+    
+    // Earth's radius in kilometers
+    const R = 6371;
+    
+    // Convert latitude and longitude from degrees to radians
+    const dLat = (latitude2 - latitude1) * Math.PI / 180;
+    const dLon = (longitude2 - longitude1) * Math.PI / 180;
+    
+    // Apply Haversine formula
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(latitude1 * Math.PI / 180) * Math.cos(latitude2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2); 
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    const distance = R * c; // Distance in km
+    
+    return Math.round(distance * 10) / 10; // Round to 1 decimal place
   }
 };
 
