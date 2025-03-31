@@ -13,12 +13,16 @@ const DatePicker = ({
   const [isSelectingStart, setIsSelectingStart] = useState(true);
   const [hoveredDate, setHoveredDate] = useState(null);
   
-  // For dual month view
-  const [leftMonth, setLeftMonth] = useState(new Date());
+  // For dual month view - ensure we get the current month and next month correctly
+  const [leftMonth, setLeftMonth] = useState(() => {
+    const date = new Date();
+    // Reset to the first day of the month to avoid any date shifting issues
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  });
   const [rightMonth, setRightMonth] = useState(() => {
     const date = new Date();
-    date.setMonth(date.getMonth() + 1);
-    return date;
+    // Create the first day of next month to ensure we don't skip months
+    return new Date(date.getFullYear(), date.getMonth() + 1, 1);
   });
   
   const [startInputValue, setStartInputValue] = useState(
@@ -29,6 +33,10 @@ const DatePicker = ({
   );
   
   const containerRef = useRef(null);
+  
+  // Create a reference for today's date to disable past dates
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Set to beginning of day for accurate comparison
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -63,20 +71,51 @@ const DatePicker = ({
   
   // Initialize from props
   useEffect(() => {
+    // If we have initial dates, update both the date state and the calendar view
     if (initialStartDate) {
       setStartDate(initialStartDate);
+      
+      // Also update the calendar view to show the month containing the start date
+      if (initialStartDate) {
+        // Create a new date for the first of the month of the start date
+        const startMonth = new Date(
+          initialStartDate.getFullYear(),
+          initialStartDate.getMonth(),
+          1
+        );
+        setLeftMonth(startMonth);
+        
+        // Set the right month to the next month
+        const nextMonth = new Date(
+          startMonth.getFullYear(),
+          startMonth.getMonth() + 1,
+          1
+        );
+        setRightMonth(nextMonth);
+      }
     }
+    
     if (initialEndDate) {
       setEndDate(initialEndDate);
     }
+    
+    console.log("Initialized DatePicker with dates:", {
+      start: initialStartDate ? formatInputDate(initialStartDate) : null,
+      end: initialEndDate ? formatInputDate(initialEndDate) : null
+    });
   }, [initialStartDate, initialEndDate]);
 
   // Function to format date for input fields
+  // Format a date for display in the input fields
+  // Using local date methods to ensure consistent display
   function formatInputDate(date) {
     if (!date) return '';
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
+    // Make a local copy of the date to avoid any potential mutation
+    const localDate = new Date(date.getTime());
+    const month = String(localDate.getMonth() + 1).padStart(2, '0');
+    const day = String(localDate.getDate()).padStart(2, '0');
+    const year = localDate.getFullYear();
+    
     return `${month}/${day}/${year}`;
   }
   
@@ -91,7 +130,7 @@ const DatePicker = ({
     return isNaN(date.getTime()) ? null : date;
   }
 
-  // Navigate months - Fixed to prevent form submission
+  // Navigate months - Fixed to prevent form submission and ensure correct month navigation
   const navigateMonths = (direction, e) => {
     // Prevent form submission
     if (e) {
@@ -99,13 +138,27 @@ const DatePicker = ({
       e.stopPropagation();
     }
     
-    const newLeftMonth = new Date(leftMonth);
-    newLeftMonth.setMonth(leftMonth.getMonth() + direction);
+    // Create a new date for the left month, always targeting the 1st day
+    // to avoid any issues with different month lengths
+    const newLeftMonth = new Date(
+      leftMonth.getFullYear(),
+      leftMonth.getMonth() + direction,
+      1
+    );
     setLeftMonth(newLeftMonth);
     
-    const newRightMonth = new Date(newLeftMonth);
-    newRightMonth.setMonth(newLeftMonth.getMonth() + 1);
+    // Create right month similarly, always as the 1st day of the month
+    const newRightMonth = new Date(
+      newLeftMonth.getFullYear(),
+      newLeftMonth.getMonth() + 1,
+      1
+    );
     setRightMonth(newRightMonth);
+    
+    console.log("Navigated to months:", {
+      left: formatMonthName(newLeftMonth),
+      right: formatMonthName(newRightMonth)
+    });
   };
 
   // Generate calendar days for a month
@@ -132,8 +185,17 @@ const DatePicker = ({
     return days;
   };
 
+  // Check if a date is in the past (before today)
+  const isDateInPast = (date) => {
+    if (!date) return false;
+    // Clone the date and set to beginning of day for accurate comparison
+    const dateToCheck = new Date(date);
+    dateToCheck.setHours(0, 0, 0, 0);
+    return dateToCheck < today;
+  };
+
   const handleDateSelect = (date) => {
-    if (!date) return;
+    if (!date || isDateInPast(date)) return;
     
     if (isSelectingStart || !startDate || date < startDate) {
       setStartDate(date);
@@ -162,7 +224,7 @@ const DatePicker = ({
   const handleInputBlur = (isStart) => {
     if (isStart) {
       const date = parseInputDate(startInputValue);
-      if (date) {
+      if (date && !isDateInPast(date)) {
         setStartDate(date);
         if (endDate && date > endDate) {
           setEndDate(null);
@@ -172,7 +234,7 @@ const DatePicker = ({
       }
     } else {
       const date = parseInputDate(endInputValue);
-      if (date && startDate && date >= startDate) {
+      if (date && startDate && date >= startDate && !isDateInPast(date)) {
         setEndDate(date);
       } else {
         setEndInputValue(endDate ? formatInputDate(endDate) : '');
@@ -199,7 +261,7 @@ const DatePicker = ({
     }
   };
   
-  // Fixed apply dates function
+  // Fixed apply dates function with guaranteed preservation of exact dates
   const applyDates = (e) => {
     if (e) {
       e.preventDefault();
@@ -207,13 +269,26 @@ const DatePicker = ({
     }
     
     if (onDateSelect) {
-      onDateSelect({ startDate, endDate });
+      // Make sure we're preserving the exact dates (day, month, year) without any shift
+      const exactStartDate = startDate ? new Date(startDate.getTime()) : null;
+      const exactEndDate = endDate ? new Date(endDate.getTime()) : null;
+      
+      // Log the exact dates being passed to parent
+      console.log("Applying exact dates:", {
+        start: exactStartDate ? formatInputDate(exactStartDate) : null,
+        end: exactEndDate ? formatInputDate(exactEndDate) : null
+      });
+      
+      onDateSelect({ 
+        startDate: exactStartDate, 
+        endDate: exactEndDate 
+      });
     }
     setIsOpen(false);
   };
   
   const handleMouseEnter = (date) => {
-    if (!isSelectingStart && startDate && date > startDate) {
+    if (!isSelectingStart && startDate && date > startDate && !isDateInPast(date)) {
       setHoveredDate(date);
     }
   };
@@ -224,7 +299,7 @@ const DatePicker = ({
 
   // For a day in the calendar, check if it's selected or in range
   const getDayState = (day) => {
-    if (!day) return { isSelected: false, isInRange: false, isHovered: false };
+    if (!day) return { isSelected: false, isInRange: false, isHovered: false, isDisabled: false };
     
     const isStartDate = startDate && day.toDateString() === startDate.toDateString();
     const isEndDate = endDate && day.toDateString() === endDate.toDateString();
@@ -236,11 +311,14 @@ const DatePicker = ({
     const isInHoveredRange = startDate && hoveredDate && !endDate &&
                            day > startDate && day <= hoveredDate;
     
+    const isDisabled = isDateInPast(day);
+    
     return { 
       isSelected, 
       isInRange: isInRange || isInHoveredRange,
       isStartDate,
-      isEndDate
+      isEndDate,
+      isDisabled
     };
   };
 
@@ -262,12 +340,14 @@ const DatePicker = ({
           {days.map((day, index) => {
             if (!day) return <div key={`empty-${index}`} className="h-8"></div>;
             
-            const { isSelected, isInRange, isStartDate, isEndDate } = getDayState(day);
-            const isToday = day.toDateString() === new Date().toDateString();
+            const { isSelected, isInRange, isStartDate, isEndDate, isDisabled } = getDayState(day);
+            const isToday = day.toDateString() === today.toDateString();
             
             let dayClasses = 'h-8 w-8 flex items-center justify-center text-sm rounded-full mx-auto ';
             
-            if (isSelected) {
+            if (isDisabled) {
+              dayClasses += 'text-gray-300 cursor-not-allowed ';
+            } else if (isSelected) {
               dayClasses += 'bg-purple-600 text-white ';
             } else if (isInRange) {
               dayClasses += 'bg-purple-100 text-purple-800 ';
@@ -294,11 +374,14 @@ const DatePicker = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleDateSelect(day);
+                    if (!isDisabled) {
+                      handleDateSelect(day);
+                    }
                   }}
                   onMouseEnter={() => handleMouseEnter(day)}
                   onMouseLeave={handleMouseLeave}
                   className={dayClasses}
+                  disabled={isDisabled}
                 >
                   {day.getDate()}
                 </button>

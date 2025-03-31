@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaCalendarAlt, FaMapMarkerAlt, FaTimes } from 'react-icons/fa';
 import searchService from '../../services/searchService';
 
 export default function RecentlyViewedEvents({ isVisible, onClose, onEventSelect }) {
   const [recentEvents, setRecentEvents] = useState([]);
+  const navigate = useNavigate();
   
   useEffect(() => {
     // Load recently viewed events when component mounts or becomes visible
@@ -30,6 +31,15 @@ export default function RecentlyViewedEvents({ isVisible, onClose, onEventSelect
     setRecentEvents(updated);
   };
   
+  const handleEventClick = (event) => {
+    // Navigate to the event page
+    navigate(`/events/${event.id}`);
+    
+    // Run the callbacks to close dropdowns
+    if (onEventSelect) onEventSelect();
+    if (onClose) onClose();
+  };
+  
   if (!isVisible) return null;
   
   return (
@@ -53,7 +63,8 @@ export default function RecentlyViewedEvents({ isVisible, onClose, onEventSelect
           {recentEvents.map(event => (
             <div 
               key={event.id} 
-              className="p-4 hover:bg-gray-50 border-b border-gray-200 flex items-center"
+              className="p-4 hover:bg-gray-50 border-b border-gray-200 flex items-center cursor-pointer"
+              onClick={() => handleEventClick(event)}
             >
               <div className="w-10 h-10 bg-gray-200 rounded overflow-hidden mr-3 flex-shrink-0">
                 {event.image_url && (
@@ -61,16 +72,9 @@ export default function RecentlyViewedEvents({ isVisible, onClose, onEventSelect
                 )}
               </div>
               <div className="flex-grow">
-                <Link 
-                  to={`/events/${event.id}`} 
-                  className="font-medium text-gray-800 hover:text-gray-900"
-                  onClick={() => {
-                    if (onEventSelect) onEventSelect();
-                    if (onClose) onClose();
-                  }}
-                >
+                <div className="font-medium text-gray-800 hover:text-gray-900">
                   {event.name}
-                </Link>
+                </div>
                 <div className="text-sm text-gray-600">
                   {event.category}
                 </div>

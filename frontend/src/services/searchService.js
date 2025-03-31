@@ -99,51 +99,72 @@ const searchService = {
     }
   },
 
-  /**
-   * Perform a search query to the backend API
-   * @param {Object} params - Search parameters
-   * @returns {Promise} Promise with search results
-   */
-  searchEvents: async (params) => {
-    try {
-      // Log the search parameters for debugging
-      console.log('Searching with params:', params);
-      
-      // Clean up params by removing empty values
-      const cleanParams = {};
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-          // Format coordinates properly
-          if ((key === 'lat' || key === 'lng') && typeof value === 'number') {
-            cleanParams[key] = value.toFixed(6);
-          } else {
+  // This update modifies the searchEvents function to support pagination if needed
+// Add this to the searchService.js file if you need server-side pagination
+
+/**
+ * Perform a search query to the backend API with pagination support
+ * @param {Object} params - Search parameters
+ * @param {number} page - Page number (optional)
+ * @param {number} limit - Results per page (optional)
+ * @returns {Promise} Promise with search results
+ */
+searchEvents: async (params, page = 1, limit = 0) => {
+  try {
+    // Log the search parameters for debugging
+    console.log('Searching with params:', params);
+    
+    // Clone the params to avoid modifying the original
+    const searchParams = { ...params };
+    
+    // Add pagination parameters if needed (for server-side pagination)
+    if (limit > 0) {
+      searchParams.page = page;
+      searchParams.limit = limit;
+    }
+    
+    // Clean up params by removing empty values
+    const cleanParams = {};
+    Object.entries(searchParams).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        // Format coordinates properly
+        if (key === 'lat' || key === 'lng') {
+          // Make sure latitude and longitude are properly formatted
+          // Handle both string and number types safely
+          if (typeof value === 'number') {
+            cleanParams[key] = value.toString();
+          } else if (typeof value === 'string') {
+            // If it's already a string, just use it directly
             cleanParams[key] = value;
           }
+        } else {
+          cleanParams[key] = value;
         }
-      });
-      
-      console.log('Clean params:', cleanParams);
-      
-      const response = await api.get('/search/events', { params: cleanParams });
-      
-      // Extract distance information if available and format it
-      if (response.data && response.data.events) {
-        response.data.events = response.data.events.map(event => {
-          if (event.distance) {
-            // Round to 1 decimal place and add formatted distance string
-            event.distance = Math.round(event.distance * 10) / 10;
-            event.distanceFormatted = `${event.distance} km away`;
-          }
-          return event;
-        });
       }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Search API error:', error);
-      throw error;
+    });
+    
+    console.log('Clean params:', cleanParams);
+    
+    const response = await api.get('/search/events', { params: cleanParams });
+    
+    // Extract distance information if available and format it
+    if (response.data && response.data.events) {
+      response.data.events = response.data.events.map(event => {
+        if (event.distance) {
+          // Round to 1 decimal place and add formatted distance string
+          event.distance = Math.round(event.distance * 10) / 10;
+          event.distanceFormatted = `${event.distance} km away`;
+        }
+        return event;
+      });
     }
-  },
+    
+    return response.data;
+  } catch (error) {
+    console.error('Search API error:', error);
+    throw error;
+  }
+},
 
   /**
    * Perform a quick search query for the header search bar and suggestions

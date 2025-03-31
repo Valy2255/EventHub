@@ -11,6 +11,40 @@ import RecentlyViewedEvents from "./RecentlyViewedEvents";
 import DatePicker from "./DatePicker";
 import searchService from "../../services/searchService";
 
+// Add this utility function to SearchFilter.jsx after the imports
+// and use it whenever you need to convert a date string to a Date object
+
+/**
+ * Safely convert a date string to a Date object preserving the exact date
+ * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @returns {Date|null} - Date object or null if invalid
+ */
+const parseExactDate = (dateStr) => {
+  if (!dateStr) return null;
+  
+  try {
+    // Split the date string into components
+    const [year, month, day] = dateStr.split('-').map(Number);
+    
+    // Create a new date using local date constructor (not UTC)
+    // Month is 0-indexed in JS Date, so subtract 1
+    const date = new Date(year, month - 1, day);
+    
+    // Verify that the date is valid and matches what we expect
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    ) {
+      return date;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error parsing date:', error);
+    return null;
+  }
+};
+
 export default function SearchFilter({ initialParams = {} }) {
   const [locationInput, setLocationInput] = useState(
     initialParams.location || ""
@@ -46,8 +80,8 @@ export default function SearchFilter({ initialParams = {} }) {
   useEffect(() => {
     if (initialParams.lat && initialParams.lng) {
       setUserLocation({
-        latitude: initialParams.lat,
-        longitude: initialParams.lng,
+        latitude: parseFloat(initialParams.lat),
+        longitude: parseFloat(initialParams.lng),
       });
       if (initialParams.location === "Current Location") {
         setLocationInput("Current Location");
@@ -57,8 +91,14 @@ export default function SearchFilter({ initialParams = {} }) {
     // Initialize date range if start and end dates are in params
     if (initialParams.startDate && initialParams.endDate) {
       setDateRange({
-        startDate: new Date(initialParams.startDate),
-        endDate: new Date(initialParams.endDate),
+        startDate: parseExactDate(initialParams.startDate),
+        endDate: parseExactDate(initialParams.endDate),
+      });
+      console.log("Initialized with exact dates:", {
+        startDate: initialParams.startDate,
+        parsedStart: parseExactDate(initialParams.startDate),
+        endDate: initialParams.endDate,
+        parsedEnd: parseExactDate(initialParams.endDate)
       });
     } else if (initialParams.date) {
       // Handle legacy date parameter
@@ -123,7 +163,6 @@ export default function SearchFilter({ initialParams = {} }) {
   }, [searchText]);
 
   // Get user's location with explicit permission prompt
-  // Enhanced getUserLocation function to add to SearchFilter.jsx and Header.jsx
   const getUserLocation = () => {
     if (navigator.geolocation) {
       setIsGettingLocation(true);
@@ -180,9 +219,18 @@ export default function SearchFilter({ initialParams = {} }) {
     }
   };
 
-  // Format date to ISO string for backend
+  // Format date to ISO string for backend - fixed to handle timezone issues
   const formatDate = (date) => {
-    return date ? date.toISOString().split("T")[0] : "";
+    if (!date) return "";
+    
+    // Use local date methods to avoid timezone shifts
+    const year = date.getFullYear();
+    // getMonth() is 0-indexed, so add 1 for actual month
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    // Format as YYYY-MM-DD without timezone conversion
+    return `${year}-${month}-${day}`;
   };
 
   // Update search by adapting to the backend API
@@ -203,9 +251,16 @@ export default function SearchFilter({ initialParams = {} }) {
 
       // Date handling
       if (dateRange && dateRange.startDate && dateRange.endDate) {
-        // Handle date range
-        params.append("startDate", formatDate(dateRange.startDate));
-        params.append("endDate", formatDate(dateRange.endDate));
+        // Make sure the exact dates are preserved without any shifts
+        const startDateStr = formatDate(dateRange.startDate);
+        const endDateStr = formatDate(dateRange.endDate);
+        params.append("startDate", startDateStr);
+        params.append("endDate", endDateStr);
+        
+        console.log("Date range:", {
+          start: startDateStr,
+          end: endDateStr
+        });
       }
 
       // Search text
@@ -213,9 +268,20 @@ export default function SearchFilter({ initialParams = {} }) {
 
       // Add coordinates if using current location
       if (userLocation && locationInput === "Current Location") {
-        // Make sure we're using the correct precision for coordinates
-        const lat = userLocation.latitude.toFixed(6);
-        const lng = userLocation.longitude.toFixed(6);
+        // Convert coordinates to strings safely
+        let lat, lng;
+        
+        if (typeof userLocation.latitude === 'number') {
+          lat = userLocation.latitude.toString();
+        } else {
+          lat = userLocation.latitude;
+        }
+        
+        if (typeof userLocation.longitude === 'number') {
+          lng = userLocation.longitude.toString();
+        } else {
+          lng = userLocation.longitude;
+        }
 
         params.append("lat", lat);
         params.append("lng", lng);

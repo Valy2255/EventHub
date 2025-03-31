@@ -1,15 +1,22 @@
 // src/pages/SearchResultsPage.jsx
 import { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { FaCalendar, FaMapMarkerAlt, FaClock, FaTicketAlt, FaChevronLeft } from 'react-icons/fa';
+import { FaCalendar, FaMapMarkerAlt, FaClock, FaTicketAlt, FaChevronLeft, FaChevronDown } from 'react-icons/fa';
 import searchService from '../services/searchService';
 import SearchFilter from '../components/search/SearchFilter';
 
 export default function SearchResultsPage() {
   const [events, setEvents] = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [searchParams, setSearchParams] = useState({});
+  const [page, setPage] = useState(1);
+  const [totalEvents, setTotalEvents] = useState(0);
+  const [loadedEvents, setLoadedEvents] = useState(0);
+  const eventsPerPage = 20;
+  
   const location = useLocation();
 
   useEffect(() => {
@@ -17,6 +24,7 @@ export default function SearchResultsPage() {
       try {
         setLoading(true);
         setError(null);
+        setPage(1); // Reset to page 1 on new search
         
         // Get search parameters from URL
         const urlParams = new URLSearchParams(location.search);
@@ -37,7 +45,15 @@ export default function SearchResultsPage() {
         
         // Call search API
         const response = await searchService.searchEvents(query);
-        setEvents(response.events || []);
+        
+        // Store all events for pagination
+        const receivedEvents = response.events || [];
+        setAllEvents(receivedEvents);
+        setTotalEvents(receivedEvents.length);
+        
+        // Display only first page of events
+        setEvents(receivedEvents.slice(0, eventsPerPage));
+        setLoadedEvents(Math.min(eventsPerPage, receivedEvents.length));
       } catch (error) {
         console.error('Error fetching search results:', error);
         setError('Failed to fetch search results. Please try again.');
@@ -48,6 +64,25 @@ export default function SearchResultsPage() {
 
     fetchSearchResults();
   }, [location.search]);
+  
+  // Handle loading more events
+  const loadMoreEvents = () => {
+    setLoadingMore(true);
+    
+    // Calculate next page
+    const nextPage = page + 1;
+    const startIndex = page * eventsPerPage;
+    const endIndex = nextPage * eventsPerPage;
+    
+    // Get the next batch of events
+    setTimeout(() => {
+      const newEvents = [...events, ...allEvents.slice(startIndex, endIndex)];
+      setEvents(newEvents);
+      setPage(nextPage);
+      setLoadedEvents(Math.min(nextPage * eventsPerPage, totalEvents));
+      setLoadingMore(false);
+    }, 500); // Add a slight delay for better UX
+  };
 
   // Format date for display
   const formatDate = (dateString) => {
@@ -81,8 +116,8 @@ export default function SearchResultsPage() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-800">
-            {events.length > 0 
-              ? `${events.length} Events Found`
+            {totalEvents > 0 
+              ? `${totalEvents} Events Found`
               : loading 
                 ? 'Searching Events...' 
                 : 'No Events Found'}
@@ -224,15 +259,37 @@ export default function SearchResultsPage() {
           </div>
         )}
         
-        {/* Show more button for pagination later */}
-        {!loading && !error && events.length > 0 && (
+        {/* Load More Button - Updated to match design in image */}
+        {!loading && !error && events.length > 0 && loadedEvents < totalEvents && (
           <div className="text-center mt-8">
-            <button 
-              className="border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium px-6 py-2 rounded-full"
-              onClick={() => window.scrollTo(0, 0)}
-            >
-              Back to Top
-            </button>
+            <div className="bg-gray-100 rounded-full py-4 px-6 inline-block text-center">
+              <div className="text-gray-500 text-sm mb-2">
+                Loaded {loadedEvents} out of {totalEvents} events
+              </div>
+              <div className="w-64 bg-gray-300 h-1 rounded-full mx-auto mb-3">
+                <div 
+                  className="bg-gray-600 h-1 rounded-full" 
+                  style={{ width: `${(loadedEvents / totalEvents) * 100}%` }}
+                ></div>
+              </div>
+              
+              <button
+                onClick={loadMoreEvents}
+                disabled={loadingMore}
+                className="border border-gray-800 text-gray-800 font-medium rounded-full px-6 py-2 inline-flex items-center hover:bg-gray-50"
+              >
+                {loadingMore ? (
+                  <span className="flex items-center">
+                    <div className="animate-spin h-4 w-4 border-t-2 border-gray-800 border-r-2 rounded-full mr-2"></div>
+                    Loading...
+                  </span>
+                ) : (
+                  <>
+                    More Events <FaChevronDown className="ml-2 h-3 w-3" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
       </div>

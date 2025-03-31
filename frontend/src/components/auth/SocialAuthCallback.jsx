@@ -31,10 +31,13 @@ export default function SocialAuthCallback() {
         
         // Save token
         localStorage.setItem('token', token);
+        localStorage.setItem('authType', 'persistent');
         
         // Get user information
         const response = await api.get('/auth/me');
         setUser(response.data.user);
+
+        console.log("Token received:", token ? "Yes (Length: " + token.length + ")" : "No");
         
         setStatus('Authentication successful! Redirecting...');
         setTimeout(() => navigate('/'), 1500);
