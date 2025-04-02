@@ -1,295 +1,502 @@
 // src/components/layout/CategoryHeader.jsx
-import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { 
-  FaSearch, 
-  FaCalendarAlt, 
-  FaMapMarkerAlt, 
-  FaChevronDown 
-} from 'react-icons/fa';
-import api from '../../services/api';
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
+import {
+  FaMapMarkerAlt,
+  FaChevronDown,
+  FaSpinner,
+  FaHome,
+} from "react-icons/fa";
+import api from "../../services/api";
+import DatePicker from "../search/DatePicker";
 
 export default function CategoryHeader({ categoryData, subcategoryData }) {
-  const [searchText, setSearchText] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
+  // State for category and subcategory
+  const [category, setCategory] = useState(categoryData || null);
+  const [subcategory, setSubcategory] = useState(subcategoryData || null);
   const [subcategories, setSubcategories] = useState([]);
-  const [isSubcategoryDropdownOpen, setIsSubcategoryDropdownOpen] = useState(false);
-  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
-  
-  const subcategoryDropdownRef = useRef(null);
-  const dateDropdownRef = useRef(null);
-  const locationDropdownRef = useRef(null);
-  
-  const { categorySlug, subcategorySlug } = useParams();
-  const navigate = useNavigate();
 
+  // Search and filter states
+  const [locationInput, setLocationInput] = useState("");
+  const [dateRange, setDateRange] = useState({
+    startDate: null,
+    endDate: null,
+  });
+  const [userLocation, setUserLocation] = useState(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [locationOptions] = useState([
+    "Bucharest",
+    "Cluj-Napoca",
+    "Timisoara",
+    "Iasi",
+    "Brasov",
+  ]);
+
+  // Refs for handling outside clicks
+  const locationDropdownRef = useRef(null);
+  const categoryDropdownRef = useRef(null);
+
+  const params = useParams();
+  const { categorySlug, subcategorySlug } = params;
+  const slug = categorySlug || params.slug; // Support both param naming conventions
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Parse parameters from URL query string for filter persistence
   useEffect(() => {
-    if (categorySlug) {
-      const fetchSubcategories = async () => {
+    const searchParams = new URLSearchParams(location.search);
+
+    // Set location if present in URL
+    const locationParam = searchParams.get("location");
+    if (locationParam) {
+      setLocationInput(locationParam);
+    }
+
+    // Set date range if present in URL
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+
+    if (startDate && endDate) {
+      const parseExactDate = (dateStr) => {
+        if (!dateStr) return null;
         try {
-          const response = await api.get(`/categories/${categorySlug}/subcategories`);
-          setSubcategories(response.data.subcategories);
+          // Make sure we create a date in the user's timezone
+          const [year, month, day] = dateStr.split("-").map(Number);
+          const date = new Date(year, month - 1, day);
+          return date;
         } catch (error) {
-          console.error('Error loading subcategories:', error);
+          console.error("Error parsing date:", error);
+          return null;
         }
       };
 
-      fetchSubcategories();
+      setDateRange({
+        startDate: parseExactDate(startDate),
+        endDate: parseExactDate(endDate),
+      });
     }
-  }, [categorySlug]);
+
+    // Set coordinates if using current location
+    if (searchParams.get("lat") && searchParams.get("lng")) {
+      setUserLocation({
+        latitude: parseFloat(searchParams.get("lat")),
+        longitude: parseFloat(searchParams.get("lng")),
+      });
+
+      if (locationParam === "Current Location") {
+        setLocationInput("Current Location");
+      }
+    }
+  }, [location.search]);
+
+  // Fetch category and subcategories data
+  useEffect(() => {
+    // Set category from props if available
+    if (categoryData) {
+      setCategory(categoryData);
+    }
+
+    if (subcategoryData) {
+      setSubcategory(subcategoryData);
+    }
+
+    if (slug) {
+      // Fetch subcategories for this category
+      const fetchCategoryData = async () => {
+        try {
+          // If category not provided through props, fetch it
+          if (!categoryData) {
+            const categoryResponse = await api.get(`/categories/${slug}`);
+            if (categoryResponse.data && categoryResponse.data.category) {
+              setCategory(categoryResponse.data.category);
+            }
+          }
+
+          // Fetch subcategories for this category
+          const subcategoriesResponse = await api.get(
+            `/categories/${slug}/subcategories`
+          );
+          if (
+            subcategoriesResponse.data &&
+            subcategoriesResponse.data.subcategories
+          ) {
+            setSubcategories(subcategoriesResponse.data.subcategories);
+          }
+        } catch (error) {
+          console.error("Error loading category data:", error);
+        }
+      };
+
+      fetchCategoryData();
+    }
+  }, [slug, categoryData, subcategoryData]);
 
   // Handle clicks outside dropdowns
   useEffect(() => {
     function handleClickOutside(event) {
-      if (subcategoryDropdownRef.current && !subcategoryDropdownRef.current.contains(event.target)) {
-        setIsSubcategoryDropdownOpen(false);
-      }
-      if (dateDropdownRef.current && !dateDropdownRef.current.contains(event.target)) {
-        setIsDateDropdownOpen(false);
-      }
-      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
+      if (
+        locationDropdownRef.current &&
+        !locationDropdownRef.current.contains(event.target)
+      ) {
         setIsLocationDropdownOpen(false);
+      }
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(event.target)
+      ) {
+        setIsCategoryDropdownOpen(false);
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  // Use data passed in props if available
-  const category = categoryData || { name: '', description: '' };
-  const subcategory = subcategoryData;
+  // Get user's location with explicit permission
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      setIsGettingLocation(true);
+      console.log("Requesting geolocation permission...");
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          // Success callback
+          const userCoords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+
+          console.log("Location obtained successfully:", userCoords);
+
+          // Update state and immediately apply filters with the new location
+          setUserLocation(userCoords);
+          setLocationInput("Current Location");
+          setIsLocationDropdownOpen(false);
+
+          // Apply filters with the new location
+          applyFilters("Current Location", userCoords);
+        },
+        (error) => {
+          // Error callback - handles permission denied
+          console.error(
+            "Geolocation error code:",
+            error.code,
+            "Message:",
+            error.message
+          );
+          let errorMessage = "Unable to get your location. ";
+
+          if (error.code === error.PERMISSION_DENIED) {
+            errorMessage +=
+              "Location permission was denied. Please enable location services in your browser settings.";
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            errorMessage += "Location information is unavailable.";
+          } else if (error.code === error.TIMEOUT) {
+            errorMessage += "The request to get location timed out.";
+          }
+
+          alert(errorMessage);
+          setIsGettingLocation(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    } else {
+      alert("Geolocation is not supported by this browser.");
+    }
+  };
+
+  // Handle date selection
+  const handleDateSelect = (range) => {
+    console.log("Date range selected:", range);
+    setDateRange(range);
+
+    // Apply filters with the new date range
+    setTimeout(() => applyFilters(locationInput, userLocation, range), 100);
+  };
+
+  // Handle subcategory selection
+  const handleSubcategoryChange = (subSlug) => {
+    const basePath = subSlug
+      ? `/events/category/${slug}/${subSlug}`
+      : `/events/category/${slug}`;
+
+    setIsCategoryDropdownOpen(false);
+
+    // Navigate to the selected subcategory with any existing filters
+    const searchParams = new URLSearchParams(location.search);
+    navigate(`${basePath}?${searchParams.toString()}`);
+  };
+
+  // Format date for display and API
+  const formatDate = (date) => {
+    if (!date) return "";
+
+    // Use local date methods to avoid timezone shifts
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    // Format as YYYY-MM-DD
+    return `${year}-${month}-${day}`;
+  };
+
+  // Apply all filters and update URL
+  const applyFilters = (
+    selectedLocation = locationInput,
+    selectedCoords = userLocation,
+    selectedDateRange = dateRange
+  ) => {
+    const params = new URLSearchParams();
+
+    // Keep the current page in category/subcategory structure
+    const basePath = subcategorySlug
+      ? `/events/category/${slug}/${subcategorySlug}`
+      : `/events/category/${slug}`;
+
+    // Add location filter if provided
+    if (selectedLocation && selectedLocation !== "All Locations") {
+      params.append("location", selectedLocation);
+    }
+
+    // Add date range if selected
+    if (
+      selectedDateRange &&
+      selectedDateRange.startDate &&
+      selectedDateRange.endDate
+    ) {
+      params.append("startDate", formatDate(selectedDateRange.startDate));
+      params.append("endDate", formatDate(selectedDateRange.endDate));
+    }
+
+    // Add coordinates if using current location
+    if (selectedCoords && selectedLocation === "Current Location") {
+      params.append("lat", selectedCoords.latitude.toString());
+      params.append("lng", selectedCoords.longitude.toString());
+    }
+
+    // Create URL with filters
+    const newUrl = `${basePath}?${params.toString()}`;
+    navigate(newUrl);
+  };
+
+  // Handle location selection
+  const handleLocationSelect = (selectedLocation) => {
+    // Set the location input
+    setLocationInput(selectedLocation);
+    setIsLocationDropdownOpen(false);
+
+    // If clearing the location, also clear coordinates
+    const coords = selectedLocation ? userLocation : null;
+
+    // Apply filters with the selected location
+    applyFilters(selectedLocation, coords);
+  };
 
   // Background image based on category
   const getBgImage = () => {
-    switch (categorySlug) {
-      case 'concerts':
-        return 'url(https://placehold.co/1920x400/purple/white?text=Concert+Tickets)';
-      case 'sports':
-        return 'url(https://placehold.co/1920x400/purple/white?text=Sports+Events)';
-      case 'theater-comedy':
-        return 'url(https://placehold.co/1920x400/purple/white?text=Theater+and+Comedy)';
-      case 'festivals':
-        return 'url(https://placehold.co/1920x400/purple/white?text=Festivals)';
+    // You can customize these URLs to use your own images
+    switch (slug) {
+      case "concerts":
+        return "url(https://placehold.co/1920x400/000000/ffffff?text=Concert+Tickets)";
+      case "sports":
+        return "url(https://placehold.co/1920x400/000000/ffffff?text=Sports+Events)";
+      case "theater-comedy":
+        return "url(https://placehold.co/1920x400/000000/ffffff?text=Theater+and+Comedy)";
+      case "festivals":
+        return "url(https://placehold.co/1920x400/000000/ffffff?text=Festival+Tickets)";
       default:
-        return 'url(https://placehold.co/1920x400/purple/white?text=Events)';
+        return "url(https://placehold.co/1920x400/000000/ffffff?text=Event+Tickets)";
     }
-  };
-
-  const handleSubcategoryChange = (slug) => {
-    if (slug) {
-      navigate(`/events/category/${categorySlug}/${slug}`);
-    } else {
-      navigate(`/events/category/${categorySlug}`);
-    }
-    setIsSubcategoryDropdownOpen(false);
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    // Construct search parameters
-    const params = new URLSearchParams();
-    if (locationFilter) params.append('location', locationFilter);
-    if (dateFilter) params.append('date', dateFilter);
-    if (categorySlug) params.append('category', categorySlug);
-    if (subcategorySlug) params.append('subcategory', subcategorySlug);
-    if (searchText) params.append('q', searchText);
-    
-    // Navigate to search results page
-    navigate(`/events/search?${params.toString()}`);
   };
 
   return (
     <div>
-      {/* Banner with category name overlay */}
-      <div 
-        className="w-full h-80 bg-cover bg-center relative" 
+      {/* Banner with title overlay */}
+      <div
+        className="relative w-full h-64 bg-cover bg-center"
         style={{ backgroundImage: getBgImage() }}
       >
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-start">
-          <div className="container mx-auto px-4">
+        <div className="absolute inset-0 bg-black bg-opacity-50">
+          <div className="container mx-auto h-full flex flex-col justify-end px-8 pb-12">
+            {/* Breadcrumb */}
+            <div className="text-gray-300 mb-4 flex items-center">
+              <Link to="/" className="hover:text-white">
+                <FaHome className="inline mr-1" size={14} />
+                Home
+              </Link>
+              <span className="mx-2">/</span>
+              <span className="text-white font-medium">
+                {subcategory ? (
+                  <>
+                    <Link
+                      to={`/events/category/${slug}`}
+                      className="hover:text-white"
+                    >
+                      {category?.name} Tickets
+                    </Link>
+                    <span className="mx-2">/</span>
+                    {subcategory.name}
+                  </>
+                ) : (
+                  `${category?.name} Tickets`
+                )}
+              </span>
+            </div>
+
+            {/* Main title */}
             <h1 className="text-5xl font-bold text-white uppercase">
-              {subcategory ? subcategory.name : category.name}
-              {subcategory ? ' TICKETS' : ' TICKETS'}
+              {subcategory
+                ? subcategory.name
+                : category?.name
+                ? `${category.name} TICKETS`
+                : "TICKETS"}
+              <div className="w-24 h-1 bg-blue-600 mt-2"></div>
             </h1>
-            {subcategory && (
-              <div className="mt-2">
-                <Link to={`/events/category/${categorySlug}`} className="text-purple-400 hover:text-purple-300 text-lg">
-                  {'< Back to '} {category.name}
-                </Link>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Filter section */}
+      {/* Filter bar */}
       <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4">
-          <form onSubmit={handleSearch} className="flex items-center gap-4">
-            {/* Location filter */}
-            <div 
+        <div className="container mx-auto">
+          <div className="flex items-center flex-wrap md:flex-nowrap">
+            {/* Location Selector - FIXED to apply filters immediately on selection */}
+            <div
               ref={locationDropdownRef}
-              className="relative w-56"
+              className="relative border-r border-gray-300"
             >
-              <div 
-                className="flex items-center border rounded p-2 cursor-pointer"
-                onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
+              <div
+                className="flex items-center h-14 px-4 cursor-pointer"
+                onClick={() =>
+                  setIsLocationDropdownOpen(!isLocationDropdownOpen)
+                }
               >
-                <FaMapMarkerAlt className="text-gray-500 mr-2" />
-                <span className="text-gray-800">
-                  {locationFilter || "All Locations"}
+                <FaMapMarkerAlt className="text-gray-600 mr-2" />
+                <span className="text-sm font-medium">
+                  {locationInput ? `Near ${locationInput}` : "All Locations"}
                 </span>
-                <FaChevronDown className={`ml-auto text-gray-500 ${isLocationDropdownOpen ? "transform rotate-180" : ""}`} />
+                <FaChevronDown className="ml-2 text-gray-500" size={12} />
               </div>
-              
+
+              {/* Location dropdown */}
               {isLocationDropdownOpen && (
                 <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30">
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
+                  <div className="p-2 border-b border-gray-200">
+                    <input
+                      type="text"
+                      placeholder="Enter city or zip code"
+                      value={
+                        locationInput === "Current Location"
+                          ? ""
+                          : locationInput
+                      }
+                      onChange={(e) => setLocationInput(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded text-sm text-gray-800"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") {
+                          handleLocationSelect(e.target.value);
+                        }
+                      }}
+                    />
+                  </div>
+                  <div
+                    className="p-3 hover:bg-gray-100 cursor-pointer flex items-center"
                     onClick={() => {
-                      setLocationFilter('');
-                      setIsLocationDropdownOpen(false);
+                      if (!isGettingLocation) {
+                        getUserLocation();
+                      }
                     }}
                   >
-                    All Locations
+                    {isGettingLocation ? (
+                      <FaSpinner
+                        className="text-purple-500 mr-2 animate-spin"
+                        size={14}
+                      />
+                    ) : (
+                      <FaMapMarkerAlt
+                        className="text-purple-500 mr-2"
+                        size={14}
+                      />
+                    )}
+                    <span className="text-gray-800">
+                      {isGettingLocation
+                        ? "Getting location..."
+                        : "Use Current Location"}
+                    </span>
                   </div>
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
-                    onClick={() => {
-                      setLocationFilter('Bucharest');
-                      setIsLocationDropdownOpen(false);
-                    }}
-                  >
-                    Bucharest
-                  </div>
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
-                    onClick={() => {
-                      setLocationFilter('Cluj-Napoca');
-                      setIsLocationDropdownOpen(false);
-                    }}
-                  >
-                    Cluj-Napoca
-                  </div>
-                  <div 
+                  <div
                     className="p-3 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => {
-                      setLocationFilter('Timisoara');
-                      setIsLocationDropdownOpen(false);
-                    }}
+                    onClick={() => handleLocationSelect("")}
                   >
-                    Timisoara
+                    <span className="text-gray-800">All Locations</span>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Date filter */}
-            <div 
-              ref={dateDropdownRef}
-              className="relative w-56"
-            >
-              <div 
-                className="flex items-center border rounded p-2 cursor-pointer"
-                onClick={() => setIsDateDropdownOpen(!isDateDropdownOpen)}
-              >
-                <FaCalendarAlt className="text-gray-500 mr-2" />
-                <span className="text-gray-800">
-                  {dateFilter || "All Dates"}
-                </span>
-                <FaChevronDown className={`ml-auto text-gray-500 ${isDateDropdownOpen ? "transform rotate-180" : ""}`} />
-              </div>
-              
-              {isDateDropdownOpen && (
-                <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30">
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
-                    onClick={() => {
-                      setDateFilter('');
-                      setIsDateDropdownOpen(false);
-                    }}
-                  >
-                    All Dates
-                  </div>
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
-                    onClick={() => {
-                      setDateFilter('Today');
-                      setIsDateDropdownOpen(false);
-                    }}
-                  >
-                    Today
-                  </div>
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
-                    onClick={() => {
-                      setDateFilter('This Weekend');
-                      setIsDateDropdownOpen(false);
-                    }}
-                  >
-                    This Weekend
-                  </div>
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200"
-                    onClick={() => {
-                      setDateFilter('This Week');
-                      setIsDateDropdownOpen(false);
-                    }}
-                  >
-                    This Week
-                  </div>
-                  <div 
-                    className="p-3 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => {
-                      setDateFilter('This Month');
-                      setIsDateDropdownOpen(false);
-                    }}
-                  >
-                    This Month
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Subcategory filter dropdown */}
-            {categorySlug && subcategories.length > 0 && (
-              <div 
-                ref={subcategoryDropdownRef}
-                className="relative w-64"
-              >
-                <div 
-                  className="flex items-center border rounded p-2 cursor-pointer"
-                  onClick={() => setIsSubcategoryDropdownOpen(!isSubcategoryDropdownOpen)}
-                >
-                  <span className="text-gray-800">
-                    {subcategory ? subcategory.name : `All ${category.name}`}
-                  </span>
-                  <FaChevronDown className={`ml-auto text-gray-500 ${isSubcategoryDropdownOpen ? "transform rotate-180" : ""}`} />
-                </div>
-                
-                {isSubcategoryDropdownOpen && (
-                  <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30 max-h-80 overflow-y-auto">
-                    <div 
-                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200 flex justify-between items-center"
-                      onClick={() => handleSubcategoryChange('')}
+                  {locationOptions.map((location) => (
+                    <div
+                      key={location}
+                      className="p-3 hover:bg-gray-100 cursor-pointer"
+                      onClick={() => handleLocationSelect(location)}
                     >
-                      <span className="font-medium">All {category.name}</span>
-                      {!subcategorySlug && <span className="text-gray-500">✓</span>}
+                      <span className="text-gray-800">{location}</span>
                     </div>
-                    
-                    {subcategories.map(sub => (
-                      <div 
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Category Dropdown - Fixed to maintain consistent width */}
+            {subcategories.length > 0 && (
+              <div
+                ref={categoryDropdownRef}
+                className="relative border-r border-gray-300 w-48"
+              >
+                <div
+                  className="flex items-center h-14 px-4 cursor-pointer w-full"
+                  onClick={() =>
+                    setIsCategoryDropdownOpen(!isCategoryDropdownOpen)
+                  }
+                >
+                  <span className="text-sm font-medium truncate">
+                    {subcategory
+                      ? subcategory.name
+                      : `All ${category?.name || "Events"}`}
+                  </span>
+                  <FaChevronDown className="ml-2 text-gray-500" size={12} />
+                </div>
+
+                {/* Category dropdown */}
+                {isCategoryDropdownOpen && (
+                  <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-30 max-h-80 overflow-y-auto w-64">
+                    <div
+                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200 flex justify-between items-center"
+                      onClick={() => handleSubcategoryChange("")}
+                    >
+                      <span className="font-medium">
+                        All {category?.name || "Events"}
+                      </span>
+                      {!subcategorySlug && (
+                        <span className="text-gray-500">✓</span>
+                      )}
+                    </div>
+
+                    {subcategories.map((sub) => (
+                      <div
                         key={sub.id}
                         className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200 flex justify-between items-center"
                         onClick={() => handleSubcategoryChange(sub.slug)}
                       >
                         <span>{sub.name}</span>
-                        {subcategorySlug === sub.slug && <span className="text-gray-500">✓</span>}
+                        {subcategorySlug === sub.slug && (
+                          <span className="text-gray-500">✓</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -297,25 +504,16 @@ export default function CategoryHeader({ categoryData, subcategoryData }) {
               </div>
             )}
 
-            {/* Search box */}
-            <div className="flex-grow">
-              <div className="flex">
-                <input
-                  type="text"
-                  placeholder="Search events"
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="p-2 border rounded-l flex-grow"
-                />
-                <button 
-                  type="submit"
-                  className="bg-purple-600 text-white px-4 py-2 rounded-r hover:bg-purple-700 transition-colors"
-                >
-                  <FaSearch />
-                </button>
-              </div>
+            {/* Date Picker */}
+            <div className="border-r border-gray-300 h-14">
+              <DatePicker
+                variant="header"
+                onDateSelect={handleDateSelect}
+                initialStartDate={dateRange.startDate}
+                initialEndDate={dateRange.endDate}
+              />
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>

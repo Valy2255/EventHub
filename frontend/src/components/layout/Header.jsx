@@ -6,7 +6,6 @@ import {
   FaUserCircle,
   FaMapMarkerAlt,
   FaChevronDown,
-  FaTimes,
   FaSpinner,
 } from "react-icons/fa";
 import { useAuth } from "../../hooks/useAuth";
