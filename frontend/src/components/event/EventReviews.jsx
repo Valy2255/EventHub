@@ -45,16 +45,19 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
       <div className="flex items-center mb-2">
         {[1, 2, 3, 4, 5].map((star) => (
           <span
-            key={star}
+            key={`input-star-${star}`}
             className="cursor-pointer text-2xl"
             onClick={() => setUserRating(star)}
             onMouseEnter={() => setHoverRating(star)}
             onMouseLeave={() => setHoverRating(0)}
           >
             {hoverRating >= star || (!hoverRating && userRating >= star) ? (
-              <FaStar className="text-yellow-500" />
+              <FaStar key={`star-filled-${star}`} className="text-yellow-500" />
             ) : (
-              <FaRegStar className="text-yellow-500" />
+              <FaRegStar
+                key={`star-empty-${star}`}
+                className="text-yellow-500"
+              />
             )}
           </span>
         ))}
@@ -73,11 +76,17 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
 
     for (let i = 1; i <= 5; i++) {
       if (i <= fullStars) {
-        stars.push(<FaStar key={i} className="text-yellow-500" />);
+        stars.push(
+          <FaStar key={`star-full-${i}`} className="text-yellow-500" />
+        );
       } else if (i === fullStars + 1 && hasHalfStar) {
-        stars.push(<FaStarHalfAlt key={i} className="text-yellow-500" />);
+        stars.push(
+          <FaStarHalfAlt key={`star-half-${i}`} className="text-yellow-500" />
+        );
       } else {
-        stars.push(<FaRegStar key={i} className="text-yellow-500" />);
+        stars.push(
+          <FaRegStar key={`star-empty-${i}`} className="text-yellow-500" />
+        );
       }
     }
 
@@ -85,7 +94,6 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
   };
 
   // Submit a review
-  // In EventReviews.jsx, update the handleSubmitReview function
   const handleSubmitReview = async (e) => {
     e.preventDefault();
 
@@ -115,25 +123,30 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
         setSuccess("Your review has been updated!");
 
         // Update the review in the list
-        if (onReviewAdded) {
-          // Update the modified review
+        if (onReviewAdded && userReview) {
+          // Create an updated review object with all the original properties
           const updatedReview = {
             ...userReview,
             rating: userRating,
             comment: reviewText,
           };
 
-          // Calculate new average
-          const otherReviews = reviews.items.filter(
-            (r) => r.id !== updatedReview.id
+          // Build a new items array by replacing the old review with the updated one
+          const updatedItems = reviews.items.map((review) =>
+            review.id === editReviewId ? updatedReview : review
           );
-          const allReviews = [updatedReview, ...otherReviews];
-          const totalRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
-          const newAverage = (totalRating / allReviews.length).toFixed(1);
 
+          // Calculate new average rating
+          const totalRating = updatedItems.reduce(
+            (sum, r) => sum + r.rating,
+            0
+          );
+          const newAverage = (totalRating / updatedItems.length).toFixed(1);
+
+          // Call the callback with the new reviews structure
           onReviewAdded({
-            items: allReviews,
-            count: allReviews.length,
+            items: updatedItems,
+            count: updatedItems.length,
             averageRating: newAverage,
           });
         }
@@ -151,7 +164,24 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
         setSuccess("Your review has been submitted!");
 
         if (onReviewAdded) {
-          onReviewAdded(response.data);
+          // For a new review, we'll make sure it's properly formatted
+          const newReview = response.data;
+
+          // Add the new review to the existing items
+          const updatedItems = [newReview, ...reviews.items];
+
+          // Calculate the new average
+          const totalRating = updatedItems.reduce(
+            (sum, r) => sum + r.rating,
+            0
+          );
+          const newAverage = (totalRating / updatedItems.length).toFixed(1);
+
+          onReviewAdded({
+            items: updatedItems,
+            count: updatedItems.length,
+            averageRating: newAverage,
+          });
         }
       }
 
@@ -220,7 +250,7 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
       <h2 className="text-2xl font-bold mb-4">Reviews ({reviews.count})</h2>
 
       {/* Review form */}
-      {user && !userReview && (
+      {user && (isEditing || !userReview) && (
         <div className="bg-purple-50 p-6 rounded-lg mb-8 border border-purple-100">
           <h3 className="text-lg font-bold mb-4">
             {isEditing ? "Edit Your Review" : "Leave a Review"}
@@ -249,30 +279,48 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
               onChange={(e) => setReviewText(e.target.value)}
             />
 
-            <button
-              type="submit"
-              disabled={isSubmitting || userRating === 0}
-              className={`bg-purple-600 text-white px-4 py-2 rounded ${
-                isSubmitting || userRating === 0
-                  ? "opacity-70 cursor-not-allowed"
-                  : "hover:bg-purple-700"
-              }`}
-            >
-              {isSubmitting ? (
-                <>
-                  <FaSpinner className="inline mr-2 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "Submit Review"
+            <div className="flex space-x-3">
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditReviewId(null);
+                    setUserRating(0);
+                    setReviewText("");
+                  }}
+                  className="bg-gray-600 text-white px-4 py-2 rounded"
+                >
+                  Cancel
+                </button>
               )}
-            </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || userRating === 0}
+                className={`bg-purple-600 text-white px-4 py-2 rounded ${
+                  isSubmitting || userRating === 0
+                    ? "opacity-70 cursor-not-allowed"
+                    : "hover:bg-purple-700"
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <FaSpinner className="inline mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : isEditing ? (
+                  "Update Review"
+                ) : (
+                  "Submit Review"
+                )}
+              </button>
+            </div>
           </form>
         </div>
       )}
 
       {/* User's review */}
-      {userReview && (
+      {userReview && !isEditing && (
         <div className="bg-purple-50 p-6 rounded-lg mb-8 border border-purple-100">
           <div className="flex justify-between items-start">
             <h3 className="text-lg font-bold mb-2">Your Review</h3>
@@ -294,7 +342,7 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
             </div>
           </div>
 
-          {renderStarRating(userReview.rating)}
+          {renderStarRating(userReview.rating, `user-review-${userReview.id}`)}
           <p className="mt-2">{userReview.comment}</p>
           <p className="text-sm text-gray-500 mt-1">
             Posted on {formatDate(userReview.created_at)}
@@ -332,7 +380,10 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
           {reviews.items
             .filter((review) => !user || review.user_id !== user.id) // Filter out user's own review (shown above)
             .map((review) => (
-              <div key={review.id} className="border-b border-gray-200 pb-6">
+              <div
+                key={`review-item-${review.id}`}
+                className="border-b border-gray-200 pb-6"
+              >
                 <div className="flex items-start">
                   <div className="mr-3">
                     {review.profile_image ? (
@@ -348,7 +399,7 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
                   <div>
                     <h4 className="font-bold">{review.user_name}</h4>
                     <div className="flex items-center mt-1">
-                      {renderStarRating(review.rating)}
+                      {renderStarRating(review.rating, `review-${review.id}`)}
                       <span className="text-sm text-gray-500 ml-2">
                         {formatDate(review.created_at)}
                       </span>

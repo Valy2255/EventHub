@@ -69,8 +69,11 @@ const Checkout = () => {
           return;
         }
 
-        const ticketData = JSON.parse(storedTickets);
-        setTickets(ticketData);
+        const ticketData = JSON.parse(storedTickets).map(ticket => ({
+            ...ticket,
+            price: Number(ticket.price)
+          }));
+          setTickets(ticketData);
 
         // Calculate total
         const total = ticketData.reduce((sum, ticket) => {

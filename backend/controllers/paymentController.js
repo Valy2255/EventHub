@@ -93,10 +93,15 @@ export const processPayment = async (req, res, next) => {
             ...ticket,
             qr_code: qrCodeDataUrl,
             event_name: event.name,
-            ticket_type_name: ticketType.name
+            ticket_type_name: ticketType.name,
+            date: event.date,            // Add these properties
+            time: event.time,            // from the event
+            venue: event.venue      // object
           });
         }
         
+        console.log('Updating availability for ticket type:', 
+            { ticketTypeId, quantity, typeOf: typeof ticketTypeId })
         // Update available quantity for ticket type
         await TicketType.updateAvailability(client, ticketTypeId, -quantity);
       }

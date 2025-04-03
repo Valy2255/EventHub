@@ -63,22 +63,22 @@ export const create = async (data) => {
 };
 
 // Update available quantity of a ticket type
-export const updateAvailability = async (id, quantityChange) => {
-  const query = {
-    text: `
-      UPDATE ticket_types
+export const updateAvailability = async (client, ticketTypeId, quantityChange) => {
+    // Make sure we're using integers
+    const id = parseInt(ticketTypeId, 10);
+    const change = parseInt(quantityChange, 10);
+    
+    if (isNaN(id) || isNaN(change)) {
+      throw new Error(`Invalid ticket type ID (${ticketTypeId}) or quantity change (${quantityChange})`);
+    }
+  
+    const query = `
+      UPDATE ticket_types 
       SET available_quantity = available_quantity + $2
       WHERE id = $1
       RETURNING *
-    `,
-    values: [id, quantityChange]
-  };
-  
-  try {
-    const result = await db.query(query);
+    `;
+    
+    const result = await client.query(query, [id, change]);
     return result.rows[0];
-  } catch (error) {
-    console.error('Error updating ticket availability:', error);
-    throw error;
-  }
-};
+  };

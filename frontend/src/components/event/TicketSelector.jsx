@@ -40,7 +40,7 @@ const TicketSelector = ({ ticketTypes, onTicketChange, selectedTickets }) => {
         <div className="flex justify-between items-start">
           <div>
             <h3 className="font-bold text-gray-800">{ticket.name}</h3>
-            <div className="text-purple-600 font-bold mt-1">${ticket.price.toFixed(2)}</div>
+            <div className="text-purple-600 font-bold mt-1">${parseFloat(ticket.price).toFixed(2)}</div>
             
             {ticket.description && (
               <button 

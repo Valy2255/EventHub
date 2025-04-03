@@ -341,14 +341,8 @@ const EventDetails = () => {
               <EventReviews
                 reviews={reviews}
                 eventId={event.id}
-                onReviewAdded={(newReview) => {
-                  setReviews((prev) => ({
-                    items: [newReview, ...prev.items],
-                    count: prev.count + 1,
-                    averageRating:
-                      (prev.averageRating * prev.count + newReview.rating) /
-                      (prev.count + 1),
-                  }));
+                onReviewAdded={(updatedReviews) => {
+                    setReviews(updatedReviews);
                 }}
               />
             )}

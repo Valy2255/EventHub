@@ -299,7 +299,7 @@ export default function Header() {
                       My Profile
                     </Link>
                     <Link
-                      to="/tickets"
+                      to="/profile/tickets"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
                       My Tickets

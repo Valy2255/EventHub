@@ -79,6 +79,8 @@ export const sendTicketEmail = async (email, name, tickets, orderNumber) => {
     // Group tickets by event
     const ticketsByEvent = {};
     
+
+
     tickets.forEach(ticket => {
       if (!ticketsByEvent[ticket.event_id]) {
         ticketsByEvent[ticket.event_id] = {
