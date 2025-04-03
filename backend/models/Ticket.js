@@ -24,7 +24,7 @@ export const findByUserAndEvent = async (userId, eventId) => {
 export const findById = async (id) => {
   const query = {
     text: `
-      SELECT t.*, tt.name as ticket_type_name, e.name as event_name, e.date, e.time
+      SELECT t.*, tt.name as ticket_type_name, e.name as event_name, e.date, e.time, e.venue
       FROM tickets t
       JOIN ticket_types tt ON t.ticket_type_id = tt.id
       JOIN events e ON t.event_id = e.id
@@ -66,6 +66,33 @@ export const createReserved = async (data) => {
     return result.rows[0];
   } catch (error) {
     console.error('Error creating ticket:', error);
+    throw error;
+  }
+};
+
+// Create a purchased ticket directly
+export const createPurchased = async (client, data) => {
+  const { ticket_type_id, user_id, event_id, price, qr_code } = data;
+  
+  // Use the provided client or the default connection pool
+  const queryExecutor = client || db;
+  
+  const query = {
+    text: `
+      INSERT INTO tickets(
+        ticket_type_id, user_id, event_id, qr_code, price, status, purchase_date
+      )
+      VALUES($1, $2, $3, $4, $5, 'purchased', CURRENT_TIMESTAMP)
+      RETURNING *
+    `,
+    values: [ticket_type_id, user_id, event_id, qr_code, price]
+  };
+  
+  try {
+    const result = await queryExecutor.query(query);
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error creating purchased ticket:', error);
     throw error;
   }
 };
@@ -138,7 +165,7 @@ export const findByUser = async (userId) => {
   const query = {
     text: `
       SELECT t.*, 
-             e.name as event_name, e.date, e.time, e.venue, e.image_url,
+             e.name as event_name, e.date, e.time, e.venue, e.image_url, e.cancellation_policy,
              tt.name as ticket_type_name
       FROM tickets t
       JOIN events e ON t.event_id = e.id
@@ -154,6 +181,82 @@ export const findByUser = async (userId) => {
     return result.rows;
   } catch (error) {
     console.error('Error finding user tickets:', error);
+    throw error;
+  }
+};
+
+// Validate a ticket by QR code
+export const validateQrCode = async (qrCode) => {
+  const query = {
+    text: `
+      SELECT t.*, 
+             e.name as event_name, e.date, e.time, e.venue,
+             tt.name as ticket_type_name,
+             u.name as user_name, u.email as user_email
+      FROM tickets t
+      JOIN events e ON t.event_id = e.id
+      JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      JOIN users u ON t.user_id = u.id
+      WHERE t.qr_code = $1 AND t.status = 'purchased'
+    `,
+    values: [qrCode]
+  };
+  
+  try {
+    const result = await db.query(query);
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error validating QR code:', error);
+    throw error;
+  }
+};
+
+// Get upcoming tickets for a user
+export const findUpcomingByUser = async (userId) => {
+  const query = {
+    text: `
+      SELECT t.*, 
+             e.name as event_name, e.date, e.time, e.venue, e.image_url,
+             tt.name as ticket_type_name
+      FROM tickets t
+      JOIN events e ON t.event_id = e.id
+      JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      WHERE t.user_id = $1 AND e.date >= CURRENT_DATE AND t.status = 'purchased'
+      ORDER BY e.date ASC, e.time ASC
+    `,
+    values: [userId]
+  };
+  
+  try {
+    const result = await db.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('Error finding upcoming tickets:', error);
+    throw error;
+  }
+};
+
+// Get past tickets for a user
+export const findPastByUser = async (userId) => {
+  const query = {
+    text: `
+      SELECT t.*, 
+             e.name as event_name, e.date, e.time, e.venue, e.image_url,
+             tt.name as ticket_type_name
+      FROM tickets t
+      JOIN events e ON t.event_id = e.id
+      JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      WHERE t.user_id = $1 AND e.date < CURRENT_DATE AND t.status = 'purchased'
+      ORDER BY e.date DESC, e.time ASC
+    `,
+    values: [userId]
+  };
+  
+  try {
+    const result = await db.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('Error finding past tickets:', error);
     throw error;
   }
 };
