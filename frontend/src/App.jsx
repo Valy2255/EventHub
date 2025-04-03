@@ -8,12 +8,16 @@ import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import EventsPage from "./pages/EventsPage";
+import EventDetails from "./pages/EventDetails";
 import CategoryEvents from "./pages/CategoryEvents";
 import SubcategoryEvents from "./pages/SubcategoryEvents";
 import SearchResultsPage from "./pages/SearchResultsPage";
 import NotFound from "./pages/NotFound";
 import SocialAuthCallback from "./components/auth/SocialAuthCallback";
 import PrivateRoute from "./components/routing/PrivateRoute";
+import Checkout from "./pages/Checkout";
+import UserTickets from "./pages/UserTickets";
+import UserProfile from "./pages/UserProfile";
 import { AuthProvider } from "./context/AuthContext";
 
 function App() {
@@ -30,6 +34,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/events" element={<EventsPage />} />
+            <Route path="/events/:id" element={<EventDetails />} />
             <Route path="/social-auth-callback" element={<SocialAuthCallback />} />
             
             {/* Routes for categories and subcategories */}
@@ -41,7 +46,9 @@ function App() {
             
             {/* Protected routes */}
             <Route element={<PrivateRoute />}>
-              {/* Add protected routes here */}
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/profile" element={<UserProfile />} />
+              <Route path="/profile/tickets" element={<UserTickets />} />
             </Route>
             
             <Route path="*" element={<NotFound />} />

@@ -55,28 +55,9 @@ export const findRelated = async (categoryId, currentEventId, limit = 4) => {
 
 // Increment view count for an event
 export const incrementViews = async (id) => {
-  // First, check if the views column exists, if not - add it
+
   try {
-    // Check if column exists
-    const checkColumnQuery = {
-      text: `
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'events' AND column_name = 'views'
-      `
-    };
-    
-    const columnCheck = await db.query(checkColumnQuery);
-    
-    // If column doesn't exist, add it
-    if (columnCheck.rows.length === 0) {
-      const addColumnQuery = {
-        text: `ALTER TABLE events ADD COLUMN views INTEGER DEFAULT 0`
-      };
-      await db.query(addColumnQuery);
-    }
-    
-    // Now increment the view count
+
     const query = {
       text: `
         UPDATE events 

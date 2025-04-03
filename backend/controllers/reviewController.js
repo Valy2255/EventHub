@@ -46,10 +46,10 @@ export const createReview = async (req, res, next) => {
     }
     
     // Check if the user has attended this event (has a purchased ticket)
-    const userTickets = await Ticket.findByUserAndEvent(userId, eventId);
-    if (!userTickets || userTickets.length === 0) {
-      return res.status(403).json({ error: 'You can only review events you have attended' });
-    }
+    // const userTickets = await Ticket.findByUserAndEvent(userId, eventId);
+    // if (!userTickets || userTickets.length === 0) {
+    //   return res.status(403).json({ error: 'You can only review events you have attended' });
+    // }
     
     // Create the review
     const review = await Review.create({
@@ -74,41 +74,43 @@ export const createReview = async (req, res, next) => {
 };
 
 // Update a review
+// backend/controllers/reviewController.js
+
 export const updateReview = async (req, res, next) => {
-  try {
-    const { reviewId } = req.params;
-    const userId = req.user.id;
-    const { rating, comment } = req.body;
-    
-    // Check if rating is valid (1-5)
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    try {
+      const { reviewId } = req.params;
+      const userId = req.user.id;
+      const { rating, comment } = req.body;
+      
+      // Check if rating is valid (1-5)
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+      }
+      
+      // Get the review to check ownership
+      const existingReview = await Review.findById(reviewId);
+      
+      if (!existingReview) {
+        return res.status(404).json({ error: 'Review not found' });
+      }
+      
+      // Check if the user owns this review
+      if (existingReview.user_id !== userId) {
+        return res.status(403).json({ error: 'You can only update your own reviews' });
+      }
+      
+      // Update the review
+      const updatedReview = await Review.update(reviewId, {
+        rating,
+        comment
+      });
+      
+      res.status(200).json(updatedReview);
+    } catch (error) {
+      console.error('Error updating review:', error);
+      next(error);
     }
-    
-    // Get the review to check ownership
-    const existingReview = await Review.findById(reviewId);
-    
-    if (!existingReview) {
-      return res.status(404).json({ error: 'Review not found' });
-    }
-    
-    // Check if the user owns this review
-    if (existingReview.user_id !== userId) {
-      return res.status(403).json({ error: 'You can only update your own reviews' });
-    }
-    
-    // Update the review
-    const updatedReview = await Review.update(reviewId, {
-      rating,
-      comment
-    });
-    
-    res.status(200).json(updatedReview);
-  } catch (error) {
-    console.error('Error updating review:', error);
-    next(error);
-  }
-};
+  };
 
 // Delete a review
 export const deleteReview = async (req, res, next) => {

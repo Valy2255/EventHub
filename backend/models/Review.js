@@ -1,5 +1,24 @@
 // backend/models/Review.js
-import * as db from '../config/db.js';
+import * as db from "../config/db.js";
+
+// Find review by ID
+export const findById = async (id) => {
+  const query = {
+    text: `
+        SELECT * FROM reviews
+        WHERE id = $1
+      `,
+    values: [id],
+  };
+
+  try {
+    const result = await db.query(query);
+    return result.rows[0];
+  } catch (error) {
+    console.error("Error finding review by ID:", error);
+    throw error;
+  }
+};
 
 // Find all reviews for an event
 export const findByEventId = async (eventId) => {
@@ -11,14 +30,14 @@ export const findByEventId = async (eventId) => {
       WHERE r.event_id = $1
       ORDER BY r.created_at DESC
     `,
-    values: [eventId]
+    values: [eventId],
   };
-  
+
   try {
     const result = await db.query(query);
     return result.rows;
   } catch (error) {
-    console.error('Error finding reviews:', error);
+    console.error("Error finding reviews:", error);
     throw error;
   }
 };
@@ -30,14 +49,14 @@ export const findUserReview = async (userId, eventId) => {
       SELECT * FROM reviews
       WHERE user_id = $1 AND event_id = $2
     `,
-    values: [userId, eventId]
+    values: [userId, eventId],
   };
-  
+
   try {
     const result = await db.query(query);
     return result.rows[0];
   } catch (error) {
-    console.error('Error finding user review:', error);
+    console.error("Error finding user review:", error);
     throw error;
   }
 };
@@ -45,21 +64,21 @@ export const findUserReview = async (userId, eventId) => {
 // Create a new review
 export const create = async (data) => {
   const { user_id, event_id, rating, comment } = data;
-  
+
   const query = {
     text: `
       INSERT INTO reviews(user_id, event_id, rating, comment)
       VALUES($1, $2, $3, $4)
       RETURNING *
     `,
-    values: [user_id, event_id, rating, comment]
+    values: [user_id, event_id, rating, comment],
   };
-  
+
   try {
     const result = await db.query(query);
     return result.rows[0];
   } catch (error) {
-    console.error('Error creating review:', error);
+    console.error("Error creating review:", error);
     throw error;
   }
 };
@@ -67,7 +86,7 @@ export const create = async (data) => {
 // Update a review
 export const update = async (id, data) => {
   const { rating, comment } = data;
-  
+
   const query = {
     text: `
       UPDATE reviews
@@ -75,14 +94,14 @@ export const update = async (id, data) => {
       WHERE id = $1
       RETURNING *
     `,
-    values: [id, rating, comment]
+    values: [id, rating, comment],
   };
-  
+
   try {
     const result = await db.query(query);
     return result.rows[0];
   } catch (error) {
-    console.error('Error updating review:', error);
+    console.error("Error updating review:", error);
     throw error;
   }
 };
@@ -95,14 +114,14 @@ export const remove = async (id) => {
       WHERE id = $1
       RETURNING id
     `,
-    values: [id]
+    values: [id],
   };
-  
+
   try {
     const result = await db.query(query);
     return result.rows[0];
   } catch (error) {
-    console.error('Error deleting review:', error);
+    console.error("Error deleting review:", error);
     throw error;
   }
 };
