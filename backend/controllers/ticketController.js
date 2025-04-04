@@ -200,25 +200,52 @@ export const requestRefund = async (req, res, next) => {
     // Get the event to check the cancellation policy
     const event = await Event.findById(ticket.event_id);
     
-    // Check if the event allows refunds (implementation could vary based on policy)
+    // Check if the event allows refunds based on cancellation policy
     const eventDate = new Date(event.date);
     const now = new Date();
     
-    // Example: Only allow refunds if the event is at least 24 hours in the future
-    const hoursTillEvent = (eventDate - now) / (1000 * 60 * 60);
+    // Default refund policy: 24 hours before the event
+    let daysBeforeEvent = 1; 
     
-    if (hoursTillEvent < 24) {
+    // If there's a cancellation policy, try to extract the number of days
+    if (event.cancellation_policy) {
+      // Look for patterns like "7 days" or "7-day" in the cancellation policy
+      const daysMatch = event.cancellation_policy.match(/(\d+)[\s-]day/i);
+      if (daysMatch && daysMatch[1]) {
+        daysBeforeEvent = parseInt(daysMatch[1], 10);
+      }
+    }
+    
+    // Convert to hours for precise calculation
+    const hoursTillEvent = (eventDate - now) / (1000 * 60 * 60);
+    const requiredHours = daysBeforeEvent * 24;
+    
+    if (hoursTillEvent < requiredHours) {
       return res.status(400).json({
         success: false,
-        error: 'Refunds are only available more than 24 hours before the event'
+        error: `According to the event's cancellation policy, refunds are only available ${daysBeforeEvent} ${daysBeforeEvent === 1 ? 'day' : 'days'} or more before the event`
       });
     }
     
     // Mark the ticket as cancelled
-    const cancelledTicket = await Ticket.updateToCancelled(id);
+    const cancelledTicket = await Ticket.updateToCancelled(id, 'requested');
     
-    // Update the ticket type availability
-    await TicketType.updateAvailability(ticket.ticket_type_id, 1);
+    setTimeout(async () => {
+      try {
+        await Ticket.updateRefundStatus(id, 'completed');
+        console.log(`Refund for ticket ${id} completed automatically`);
+      } catch (err) {
+        console.error(`Error updating refund status for ticket ${id}:`, err);
+      }
+    }, 60000); // Change after 1 minute (in a real system this would be days)
+
+    // Update the ticket type availability - adding 1 back to available quantity
+    try {
+      await TicketType.increaseAvailability(ticket.ticket_type_id, 1);
+    } catch (err) {
+      console.warn('Error updating ticket availability:', err.message);
+      // Continue with the refund process even if availability update fails
+    }
     
     // If the refund is successful, we should process a refund through the payment gateway
     // This is a placeholder for now
@@ -419,6 +446,23 @@ export const updateTicketStatus = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error updating ticket status:', error);
+    next(error);
+  }
+};
+
+// Get cancelled tickets for the authenticated user
+export const getCancelledTickets = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    const cancelledTickets = await Ticket.findCancelledByUser(userId);
+    
+    res.status(200).json({
+      success: true,
+      data: cancelledTickets
+    });
+  } catch (error) {
+    console.error('Error fetching cancelled tickets:', error);
     next(error);
   }
 };

@@ -119,15 +119,17 @@ export const updateToPurchased = async (id, qrCode) => {
 };
 
 // Update ticket status to cancelled (when refunded)
-export const updateToCancelled = async (id) => {
+export const updateToCancelled = async (id, refundStatus = 'requested') => {
   const query = {
     text: `
       UPDATE tickets
-      SET status = 'cancelled', cancelled_at = CURRENT_TIMESTAMP
+      SET status = 'cancelled',
+          cancelled_at = CURRENT_TIMESTAMP,
+          refund_status = $2
       WHERE id = $1
       RETURNING *
     `,
-    values: [id]
+    values: [id, refundStatus]
   };
   
   try {
@@ -140,22 +142,23 @@ export const updateToCancelled = async (id) => {
 };
 
 // Update ticket check-in status
-export const updateCheckinStatus = async (id, isCheckedIn) => {
+export const updateCheckinStatus = async (id, checkedIn) => {
   const query = {
     text: `
       UPDATE tickets
-      SET checked_in = $2, checked_in_at = $3
+      SET checked_in = $2,
+          checked_in_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE NULL END
       WHERE id = $1
       RETURNING *
     `,
-    values: [id, isCheckedIn, isCheckedIn ? new Date() : null]
+    values: [id, checkedIn]
   };
   
   try {
     const result = await db.query(query);
     return result.rows[0];
   } catch (error) {
-    console.error('Error updating ticket check-in status:', error);
+    console.error('Error updating check-in status:', error);
     throw error;
   }
 };
@@ -257,6 +260,126 @@ export const findPastByUser = async (userId) => {
     return result.rows;
   } catch (error) {
     console.error('Error finding past tickets:', error);
+    throw error;
+  }
+};
+
+// Add this function to your models/Ticket.js file
+
+/**
+ * Find all cancelled tickets for a user and organize them by event
+ */
+export const findCancelledByUser = async (userId) => {
+  const query = {
+    text: `
+      SELECT t.*, 
+             e.name as event_name, 
+             e.date, 
+             e.time, 
+             e.venue, 
+             e.image_url,
+             e.address,
+             tt.name as ticket_type_name
+      FROM tickets t
+      JOIN events e ON t.event_id = e.id
+      JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      WHERE t.user_id = $1 
+      AND t.status = 'cancelled'
+      ORDER BY t.cancelled_at DESC
+    `,
+    values: [userId]
+  };
+  
+  try {
+    const result = await db.query(query);
+    
+    // Group tickets by event
+    const ticketsByEvent = {};
+    
+    result.rows.forEach(ticket => {
+      const eventId = ticket.event_id;
+      
+      if (!ticketsByEvent[eventId]) {
+        ticketsByEvent[eventId] = {
+          eventId,
+          eventName: ticket.event_name,
+          eventDate: ticket.date,
+          eventTime: ticket.time,
+          eventVenue: ticket.venue,
+          eventAddress: ticket.address,
+          eventImage: ticket.image_url,
+          tickets: []
+        };
+      }
+      
+      ticketsByEvent[eventId].tickets.push(ticket);
+    });
+    
+    return Object.values(ticketsByEvent);
+  } catch (error) {
+    console.error('Error finding cancelled tickets:', error);
+    throw error;
+  }
+};
+
+/**
+ * Find all pending refund requests
+ */
+export const findPendingRefunds = async () => {
+  const query = {
+    text: `
+      SELECT t.*, 
+             u.name as user_name, 
+             u.email as user_email,
+             e.name as event_name, 
+             e.date as event_date,
+             tt.name as ticket_type_name
+      FROM tickets t
+      JOIN users u ON t.user_id = u.id
+      JOIN events e ON t.event_id = e.id
+      JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      WHERE t.status = 'cancelled' 
+      AND (t.refund_status = 'requested' OR t.refund_status IS NULL)
+      ORDER BY t.cancelled_at DESC
+    `,
+    values: []
+  };
+  
+  try {
+    const result = await db.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('Error finding pending refunds:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update the refund status of a ticket
+ */
+export const updateRefundStatus = async (id, status) => {
+  const validStatuses = ['requested', 'processing', 'completed', 'failed', 'denied'];
+  
+  if (!validStatuses.includes(status)) {
+    throw new Error(`Invalid refund status: ${status}`);
+  }
+  
+  const query = {
+    text: `
+      UPDATE tickets
+      SET refund_status = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `,
+    values: [id, status]
+  };
+  
+  try {
+    const result = await db.query(query);
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error updating refund status:', error);
     throw error;
   }
 };

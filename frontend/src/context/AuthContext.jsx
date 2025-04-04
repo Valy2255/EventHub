@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { email, password });
       
-      // Salvăm token-ul în funcție de opțiunea "Ține-mă minte"
+      // Save token based on "Remember me" option
       if (rememberMe) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('authType', 'persistent');
@@ -62,8 +62,10 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('authType', 'session');
       }
       
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       setUser(response.data.user);
-      return response.data;
+      
+      return response.data; // Make sure to return this for redirect logic
     } catch (err) {
       setError(err.response?.data?.error || 'A apărut o eroare la autentificare');
       throw err;

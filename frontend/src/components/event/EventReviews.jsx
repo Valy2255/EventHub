@@ -9,6 +9,7 @@ import {
   FaEdit,
   FaTrash,
   FaSpinner,
+  FaLock,
 } from "react-icons/fa";
 import { useAuth } from "../../hooks/useAuth";
 import api from "../../services/api";
@@ -248,6 +249,24 @@ const EventReviews = ({ reviews, eventId, onReviewAdded }) => {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">Reviews ({reviews.count})</h2>
+
+      {/* Notice for non-logged in users */}
+      {!user && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center">
+          <FaLock className="text-blue-600 mr-3" />
+          <div>
+            <p className="text-blue-800">
+              You need to be logged in to leave a review.
+            </p>
+            <Link
+              to="/login"
+              className="text-blue-600 font-medium hover:underline mt-1 inline-block"
+            >
+              Log in to share your experience
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Review form */}
       {user && (isEditing || !userReview) && (

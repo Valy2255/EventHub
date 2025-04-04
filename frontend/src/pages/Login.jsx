@@ -43,8 +43,14 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(email, password, rememberMe);
-      navigate("/");
+      const result = await login(email, password, rememberMe);
+      
+      // Redirect based on user role
+      if (result.user.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(
         err.response?.data?.error || "An error occurred during authentication"

@@ -1,6 +1,7 @@
 // backend/controllers/adminController.js
 import * as User from '../models/User.js';
 import * as db from '../config/db.js';
+import * as Ticket from '../models/Ticket.js';
 
 // Get all users (admin only)
 export const getAllUsers = async (req, res, next) => {
@@ -119,6 +120,55 @@ export const getDashboardStats = async (req, res, next) => {
       }
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// Get all pending refund requests
+export const getPendingRefunds = async (req, res, next) => {
+  try {
+    const refunds = await Ticket.findPendingRefunds();
+    
+    res.status(200).json({
+      success: true,
+      count: refunds.length,
+      data: refunds
+    });
+  } catch (error) {
+    console.error('Error fetching pending refunds:', error);
+    next(error);
+  }
+};
+
+// Approve a refund request
+export const approveRefund = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!status || !['processing', 'completed', 'failed', 'denied'].includes(status)) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Invalid status. Status must be one of: processing, completed, failed, denied' 
+      });
+    }
+    
+    const ticket = await Ticket.updateRefundStatus(id, status);
+    
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        error: 'Ticket not found'
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: ticket,
+      message: `Refund status updated to ${status}`
+    });
+  } catch (error) {
+    console.error('Error updating refund status:', error);
     next(error);
   }
 };

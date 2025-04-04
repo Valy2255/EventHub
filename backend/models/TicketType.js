@@ -62,23 +62,63 @@ export const create = async (data) => {
   }
 };
 
-// Update available quantity of a ticket type
-export const updateAvailability = async (client, ticketTypeId, quantityChange) => {
-    // Make sure we're using integers
-    const id = parseInt(ticketTypeId, 10);
-    const change = parseInt(quantityChange, 10);
-    
-    if (isNaN(id) || isNaN(change)) {
-      throw new Error(`Invalid ticket type ID (${ticketTypeId}) or quantity change (${quantityChange})`);
-    }
+
+export const updateAvailability = async (ticketTypeId, quantityChange) => {
+  // Ensure parameters are valid numbers
+  const typeId = parseInt(ticketTypeId, 10);
+  const change = parseInt(quantityChange, 10);
   
-    const query = `
-      UPDATE ticket_types 
-      SET available_quantity = available_quantity + $2
-      WHERE id = $1
-      RETURNING *
-    `;
+  if (isNaN(typeId) || isNaN(change)) {
+    throw new Error(`Invalid ticket type ID (${ticketTypeId}) or quantity change (${quantityChange})`);
+  }
+  
+  try {
+    // First, get the current ticket type to validate
+    const ticketType = await findById(typeId);
     
-    const result = await client.query(query, [id, change]);
+    if (!ticketType) {
+      throw new Error(`Ticket type with ID ${typeId} not found`);
+    }
+    
+    // Calculate new available quantity
+    const newAvailability = ticketType.available_quantity + change;
+    
+    // Ensure we don't exceed the total quantity
+    if (newAvailability > ticketType.quantity) {
+      throw new Error(`Cannot have more available tickets (${newAvailability}) than total tickets (${ticketType.quantity})`);
+    }
+    
+    // Ensure we don't go below zero
+    if (newAvailability < 0) {
+      throw new Error(`Available quantity cannot be negative (${newAvailability})`);
+    }
+    
+    // Update the available quantity
+    const query = {
+      text: `
+        UPDATE ticket_types
+        SET available_quantity = $2,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING *
+      `,
+      values: [typeId, newAvailability]
+    };
+    
+    const result = await db.query(query);
     return result.rows[0];
-  };
+  } catch (error) {
+    console.error('Error updating ticket type availability:', error);
+    throw error;
+  }
+};
+
+// Decrease available quantity when tickets are reserved
+export const decreaseAvailability = async (ticketTypeId, quantity) => {
+  return updateAvailability(ticketTypeId, -Math.abs(quantity));
+};
+
+// Increase available quantity when tickets are cancelled
+export const increaseAvailability = async (ticketTypeId, quantity) => {
+  return updateAvailability(ticketTypeId, Math.abs(quantity));
+};

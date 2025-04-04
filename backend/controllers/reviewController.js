@@ -46,10 +46,10 @@ export const createReview = async (req, res, next) => {
     }
     
     // Check if the user has attended this event (has a purchased ticket)
-    // const userTickets = await Ticket.findByUserAndEvent(userId, eventId);
-    // if (!userTickets || userTickets.length === 0) {
-    //   return res.status(403).json({ error: 'You can only review events you have attended' });
-    // }
+    const userTickets = await Ticket.findByUserAndEvent(userId, eventId);
+    if (!userTickets || userTickets.length === 0) {
+      return res.status(403).json({ error: 'You can only review events you have attended' });
+    }
     
     // Create the review
     const review = await Review.create({

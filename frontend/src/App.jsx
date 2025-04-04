@@ -19,43 +19,52 @@ import Checkout from "./pages/Checkout";
 import UserTickets from "./pages/UserTickets";
 import UserProfile from "./pages/UserProfile";
 import { AuthProvider } from "./context/AuthContext";
+import AdminRoutes from "./routes/AdminRoutes"; // Import the admin routes component
 
 function App() {
   return (
     <AuthProvider>
       <div className="flex flex-col min-h-screen">
-        <Header />
-        
-        <main className="flex-grow bg-gray-100">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/events" element={<EventsPage />} />
-            <Route path="/events/:id" element={<EventDetails />} />
-            <Route path="/social-auth-callback" element={<SocialAuthCallback />} />
-            
-            {/* Routes for categories and subcategories */}
-            <Route path="/events/category/:slug" element={<CategoryEvents />} />
-            <Route path="/events/category/:categorySlug/:subcategorySlug" element={<SubcategoryEvents />} />
-            
-            {/* Search results page */}
-            <Route path="/events/search" element={<SearchResultsPage />} />
-            
-            {/* Protected routes */}
-            <Route element={<PrivateRoute />}>
-              <Route path="/checkout" element={<Checkout />} />
-              <Route path="/profile" element={<UserProfile />} />
-              <Route path="/profile/tickets" element={<UserTickets />} />
-            </Route>
-            
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-        
-        <Footer />
+        <Routes>
+          {/* Admin Routes - Completely separate */}
+          <Route path="/admin/*" element={<AdminRoutes />} />
+
+          {/* User Routes - Main layout for all user-facing pages */}
+          <Route path="*" element={
+            <>
+              <Header />
+              <main className="flex-grow bg-gray-100">
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password/:token" element={<ResetPassword />} />
+                  <Route path="/events" element={<EventsPage />} />
+                  <Route path="/events/:id" element={<EventDetails />} />
+                  <Route path="/social-auth-callback" element={<SocialAuthCallback />} />
+                  
+                  {/* Routes for categories and subcategories */}
+                  <Route path="/events/category/:slug" element={<CategoryEvents />} />
+                  <Route path="/events/category/:categorySlug/:subcategorySlug" element={<SubcategoryEvents />} />
+                  
+                  {/* Search results page */}
+                  <Route path="/events/search" element={<SearchResultsPage />} />
+                  
+                  {/* Protected routes */}
+                  <Route element={<PrivateRoute />}>
+                    <Route path="/checkout" element={<Checkout />} />
+                    <Route path="/profile" element={<UserProfile />} />
+                    <Route path="/profile/tickets" element={<UserTickets />} />
+                  </Route>
+                  
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </main>
+              <Footer />
+            </>
+          } />
+        </Routes>
       </div>
     </AuthProvider>
   );

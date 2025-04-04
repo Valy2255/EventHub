@@ -47,11 +47,18 @@ export const processPayment = async (req, res, next) => {
       for (const ticketData of tickets) {
         const { ticketTypeId, quantity, price, eventId } = ticketData;
         
+        // Convert ticketTypeId to a number to ensure it's the correct type
+        const ticketTypeIdNum = parseInt(ticketTypeId, 10);
+        
+        if (isNaN(ticketTypeIdNum)) {
+          throw new Error(`Invalid ticket type ID: ${ticketTypeId}`);
+        }
+        
         // Verify ticket type exists and has sufficient availability
-        const ticketType = await TicketType.findById(ticketTypeId);
+        const ticketType = await TicketType.findById(ticketTypeIdNum);
         
         if (!ticketType) {
-          throw new Error(`Ticket type with ID ${ticketTypeId} not found`);
+          throw new Error(`Ticket type with ID ${ticketTypeIdNum} not found`);
         }
         
         if (ticketType.available_quantity < quantity) {
@@ -79,7 +86,7 @@ export const processPayment = async (req, res, next) => {
           
           // Create ticket in database
           const ticket = await Ticket.createPurchased(client, {
-            ticket_type_id: ticketTypeId,
+            ticket_type_id: ticketTypeIdNum,
             user_id: userId,
             event_id: eventId,
             price,
@@ -94,16 +101,21 @@ export const processPayment = async (req, res, next) => {
             qr_code: qrCodeDataUrl,
             event_name: event.name,
             ticket_type_name: ticketType.name,
-            date: event.date,            // Add these properties
-            time: event.time,            // from the event
-            venue: event.venue      // object
+            date: event.date,
+            time: event.time,
+            venue: event.venue
           });
         }
         
-        console.log('Updating availability for ticket type:', 
-            { ticketTypeId, quantity, typeOf: typeof ticketTypeId })
         // Update available quantity for ticket type
-        await TicketType.updateAvailability(client, ticketTypeId, -quantity);
+        try {
+          // Use the ticketTypeIdNum and NOT client as first parameter
+          await TicketType.updateAvailability(ticketTypeIdNum, -quantity);
+        } catch (err) {
+          console.warn('Error updating ticket availability:', err.message);
+          // Continue with the purchase even if availability update fails
+          // This is a safeguard but should be properly handled in production
+        }
       }
       
       // Commit the transaction

@@ -16,6 +16,9 @@ router.get('/my-tickets', asyncHandler(ticketController.getUserTickets));
 // Get upcoming tickets for the authenticated user
 router.get('/upcoming', asyncHandler(ticketController.getUpcomingTickets));
 
+// Get cancelled tickets for authenticated user
+router.get('/cancelled', auth, asyncHandler(ticketController.getCancelledTickets));
+
 // Get past tickets for the authenticated user
 router.get('/past', asyncHandler(ticketController.getPastTickets));
 

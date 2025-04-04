@@ -30,4 +30,8 @@ router.put('/users/:id/role', adminController.updateUserRole);
 router.delete('/users/:id', adminController.deleteUser);
 router.get('/dashboard/stats', adminController.getDashboardStats);
 
+// Refund management routes
+router.get('/refunds', adminController.getPendingRefunds);
+router.put('/refunds/:id', adminController.approveRefund);
+
 export default router;
