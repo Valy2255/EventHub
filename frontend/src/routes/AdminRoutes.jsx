@@ -6,6 +6,7 @@ import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminUsers from '../pages/admin/AdminUsers';
 import AdminEvents from '../pages/admin/AdminEvents';
 import AdminCategories from '../pages/admin/AdminCategories';
+import AdminSubcategories from '../pages/admin/AdminSubcategories';
 import AdminRefunds from '../pages/admin/AdminRefunds';
 
 const AdminRoutes = () => {
@@ -17,6 +18,7 @@ const AdminRoutes = () => {
           <Route path="users" element={<AdminUsers />} />
           <Route path="events" element={<AdminEvents />} />
           <Route path="categories" element={<AdminCategories />} />
+          <Route path="subcategories" element={<AdminSubcategories />} />
           <Route path="refunds" element={<AdminRefunds />} />
         </Route>
       </Route>

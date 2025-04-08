@@ -383,3 +383,66 @@ export const updateRefundStatus = async (id, status) => {
     throw error;
   }
 };
+
+/**
+ * Find all refunds with their status (for admin)
+ */
+export const getAllRefunds = async () => {
+  const query = {
+    text: `
+      SELECT t.*, 
+             u.name as user_name, 
+             u.email as user_email,
+             e.name as event_name, 
+             e.date as event_date,
+             tt.name as ticket_type_name
+      FROM tickets t
+      JOIN users u ON t.user_id = u.id
+      JOIN events e ON t.event_id = e.id
+      JOIN ticket_types tt ON t.ticket_type_id = tt.id
+      WHERE t.status = 'cancelled' 
+      ORDER BY 
+        CASE
+          WHEN t.refund_status = 'requested' OR t.refund_status IS NULL THEN 1
+          WHEN t.refund_status = 'processing' THEN 2
+          ELSE 3
+        END,
+        t.cancelled_at DESC
+    `,
+    values: []
+  };
+  
+  try {
+    const result = await db.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('Error finding all refunds:', error);
+    throw error;
+  }
+};
+
+/**
+ * Process automatic refund completion for tickets in 'processing' status for more than 5 days
+ */
+export const processAutomaticRefundCompletion = async () => {
+  const query = {
+    text: `
+      UPDATE tickets
+      SET refund_status = 'completed',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE status = 'cancelled'
+      AND refund_status = 'processing'
+      AND cancelled_at < (CURRENT_TIMESTAMP - INTERVAL '5 days')
+      RETURNING id, event_id, ticket_type_id, user_id
+    `,
+    values: []
+  };
+  
+  try {
+    const result = await db.query(query);
+    return result.rows;
+  } catch (error) {
+    console.error('Error processing automatic refund completion:', error);
+    throw error;
+  }
+};

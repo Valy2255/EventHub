@@ -1,3 +1,6 @@
+// backend/controllers/subcategoryController.js
+import * as Subcategory from '../models/Subcategory.js';
+
 export const getAllSubcategories = async (req, res, next) => {
   try {
     const subcategories = await Subcategory.getAll(req.query.categoryId);

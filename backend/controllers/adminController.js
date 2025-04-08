@@ -172,3 +172,278 @@ export const approveRefund = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get all refunds (including all statuses)
+export const getAllRefunds = async (req, res, next) => {
+  try {
+    const refunds = await Ticket.getAllRefunds();
+    
+    // Count pending refunds (those with status 'requested' or null)
+    const pendingCount = refunds.filter(
+      refund => refund.refund_status === 'requested' || refund.refund_status === null
+    ).length;
+    
+    // Process any automatic completions for tickets in 'processing' status for more than 5 days
+    const autoCompletedRefunds = await Ticket.processAutomaticRefundCompletion();
+    
+    // If any refunds were automatically completed, refresh the list
+    let finalRefunds = refunds;
+    if (autoCompletedRefunds.length > 0) {
+      console.log(`Automatically completed ${autoCompletedRefunds.length} refunds that were processing for more than 5 days`);
+      finalRefunds = await Ticket.getAllRefunds();
+    }
+    
+    res.status(200).json({
+      success: true,
+      count: pendingCount,
+      total: finalRefunds.length,
+      data: finalRefunds
+    });
+  } catch (error) {
+    console.error('Error fetching all refunds:', error);
+    next(error);
+  }
+};
+
+// Get all events (admin)
+export const getAllEvents = async (req, res, next) => {
+  try {
+    // Default order by most recent
+    const { sort = 'newest', status, search, page = 1, limit = 10 } = req.query;
+    
+    let query = `
+      SELECT e.*, 
+             c.name as category_name,
+             s.name as subcategory_name,
+             COUNT(t.id) as tickets_sold
+      FROM events e
+      LEFT JOIN categories c ON e.category_id = c.id
+      LEFT JOIN subcategories s ON e.subcategory_id = s.id
+      LEFT JOIN tickets t ON e.id = t.event_id AND t.status = 'purchased'
+    `;
+    
+    // Build where clause
+    const whereConditions = [];
+    const queryParams = [];
+    
+    if (status) {
+      whereConditions.push(`e.status = $${queryParams.length + 1}`);
+      queryParams.push(status);
+    }
+    
+    if (search) {
+      whereConditions.push(`(
+        e.name ILIKE $${queryParams.length + 1} OR
+        e.description ILIKE $${queryParams.length + 1} OR
+        e.venue ILIKE $${queryParams.length + 1}
+      )`);
+      queryParams.push(`%${search}%`);
+    }
+    
+    if (whereConditions.length > 0) {
+      query += ` WHERE ${whereConditions.join(' AND ')}`;
+    }
+    
+    // Group by event fields
+    query += ` GROUP BY e.id, c.name, s.name`;
+    
+    // Order by
+    if (sort === 'newest') {
+      query += ` ORDER BY e.created_at DESC`;
+    } else if (sort === 'oldest') {
+      query += ` ORDER BY e.created_at ASC`;
+    } else if (sort === 'name_asc') {
+      query += ` ORDER BY e.name ASC`;
+    } else if (sort === 'name_desc') {
+      query += ` ORDER BY e.name DESC`;
+    } else if (sort === 'date_asc') {
+      query += ` ORDER BY e.date ASC, e.time ASC`;
+    } else if (sort === 'date_desc') {
+      query += ` ORDER BY e.date DESC, e.time DESC`;
+    } else if (sort === 'popular') {
+      query += ` ORDER BY tickets_sold DESC, e.views DESC`;
+    }
+    
+    // Pagination
+    const offset = (page - 1) * limit;
+    query += ` LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+    queryParams.push(limit, offset);
+    
+    // Count total events for pagination
+    let countQuery = `
+      SELECT COUNT(DISTINCT e.id) as total
+      FROM events e
+    `;
+    
+    if (whereConditions.length > 0) {
+      countQuery += ` WHERE ${whereConditions.join(' AND ')}`;
+    }
+    
+    const [eventsResult, countResult] = await Promise.all([
+      db.query(query, queryParams),
+      db.query(countQuery, queryParams.slice(0, whereConditions.length))
+    ]);
+    
+    const totalEvents = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(totalEvents / limit);
+    
+    res.status(200).json({
+      success: true,
+      count: eventsResult.rows.length,
+      total: totalEvents,
+      pagination: {
+        current: parseInt(page),
+        totalPages,
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1
+      },
+      data: eventsResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching events:', error);
+    next(error);
+  }
+};
+
+// Get event by ID (admin)
+export const getEventById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    const event = await Event.findById(id);
+    
+    if (!event) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+    
+    // Get ticket types
+    const ticketTypes = await TicketType.findByEventId(id);
+    
+    // Get tickets sold
+    const ticketsSoldQuery = {
+      text: `
+        SELECT COUNT(*) as tickets_sold
+        FROM tickets
+        WHERE event_id = $1 AND status = 'purchased'
+      `,
+      values: [id]
+    };
+    
+    const ticketsSoldResult = await db.query(ticketsSoldQuery);
+    const ticketsSold = parseInt(ticketsSoldResult.rows[0].tickets_sold);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        event,
+        ticketTypes,
+        ticketsSold
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching event details:', error);
+    next(error);
+  }
+};
+
+// Create new event (admin)
+export const createEvent = async (req, res, next) => {
+  try {
+    const eventData = req.body;
+    
+    // Validate event data
+    if (!eventData.name || !eventData.date) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Please provide all required fields' 
+      });
+    }
+    
+    // Create event
+    const event = await Event.create(eventData);
+    
+    res.status(201).json({
+      success: true,
+      data: event
+    });
+  } catch (error) {
+    console.error('Error creating event:', error);
+    next(error);
+  }
+};
+
+// Update event (admin)
+export const updateEvent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const eventData = req.body;
+    
+    // Check if event exists
+    const existingEvent = await Event.findById(id);
+    
+    if (!existingEvent) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+    
+    // Update event
+    const event = await Event.update(id, eventData);
+    
+    res.status(200).json({
+      success: true,
+      data: event
+    });
+  } catch (error) {
+    console.error('Error updating event:', error);
+    next(error);
+  }
+};
+
+// Delete event (admin)
+export const deleteEvent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if event exists
+    const existingEvent = await Event.findById(id);
+    
+    if (!existingEvent) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+    
+    // Check if tickets have been sold
+    const ticketsQuery = {
+      text: `
+        SELECT COUNT(*) as count
+        FROM tickets
+        WHERE event_id = $1 AND status = 'purchased'
+      `,
+      values: [id]
+    };
+    
+    const ticketsResult = await db.query(ticketsQuery);
+    const ticketsSold = parseInt(ticketsResult.rows[0].count);
+    
+    if (ticketsSold > 0) {
+      // Don't delete, just set status to cancelled
+      await Event.update(id, { status: 'cancelled' });
+      
+      return res.status(200).json({
+        success: true,
+        data: { id },
+        message: 'Event has been cancelled since tickets have been sold'
+      });
+    }
+    
+    // Delete event
+    await Event.deleteEvent(id);
+    
+    res.status(200).json({
+      success: true,
+      data: { id },
+      message: 'Event deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting event:', error);
+    next(error);
+  }
+};

@@ -4,6 +4,7 @@ import admin from '../middleware/admin.js';
 import * as categoryController from '../controllers/categoryController.js';
 import * as adminController from '../controllers/adminController.js';
 import * as subcategoryController from '../controllers/subcategoryController.js';
+import * as eventController from '../controllers/eventController.js';
 const router = express.Router();
 
 // Middleware-ul de autentificare și verificare a rolului admin
@@ -24,6 +25,14 @@ router.post('/subcategories', subcategoryController.createSubcategory);
 router.put('/subcategories/:id', subcategoryController.updateSubcategory);
 router.delete('/subcategories/:id', subcategoryController.deleteSubcategory);
 
+// Rute pentru evenimente (admin)
+router.get('/events', adminController.getAllEvents);
+router.get('/events/:id', adminController.getEventById);
+router.post('/events', adminController.createEvent);
+router.put('/events/:id', adminController.updateEvent);
+router.delete('/events/:id', adminController.deleteEvent);
+
+// Rute pentru utilizatori
 router.get('/users', adminController.getAllUsers);
 router.get('/users/:id', adminController.getUserById);
 router.put('/users/:id/role', adminController.updateUserRole);
@@ -31,7 +40,7 @@ router.delete('/users/:id', adminController.deleteUser);
 router.get('/dashboard/stats', adminController.getDashboardStats);
 
 // Refund management routes
-router.get('/refunds', adminController.getPendingRefunds);
+router.get('/refunds', adminController.getAllRefunds);
 router.put('/refunds/:id', adminController.approveRefund);
 
 export default router;
