@@ -12,8 +12,25 @@ import eventRoutes from './routes/eventRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import ticketRoutes from './routes/ticketRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
+import * as scheduledTasks from './utils/scheduledTasks.js';
+import cron from 'node-cron';
 
 const app = express();
+
+const initScheduledTasks = () => {
+  console.log('Initializing scheduled tasks...');
+  
+  // Schedule automatic refund processing to run every day at midnight
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      await scheduledTasks.processRefunds();
+    } catch (error) {
+      console.error('Error running scheduled refund task:', error);
+    }
+  });
+  
+  console.log('Scheduled tasks initialized');
+};
 
 // Create a global database connection pool
 global.pool = new pg.Pool({
@@ -54,5 +71,7 @@ app.listen(PORT, () => {
     } else {
       console.log('Database connected successfully');
     }
+    // Initialize scheduled tasks
+    initScheduledTasks();
   });
 });

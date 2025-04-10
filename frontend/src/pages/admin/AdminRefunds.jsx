@@ -10,6 +10,8 @@ import {
   FaSync,
   FaClock,
   FaBan,
+  FaRunning,
+  FaCogs
 } from "react-icons/fa";
 import api from "../../services/api";
 
@@ -21,13 +23,12 @@ const AdminRefunds = () => {
   const [updateSuccess, setUpdateSuccess] = useState(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [search, setSearch] = useState("");
+  const [processingRefunds, setProcessingRefunds] = useState(false);
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [daysThreshold, setDaysThreshold] = useState(5);
 
   useEffect(() => {
     fetchRefunds();
-
-    // Refresh every 5 minutes to check for auto-completion
-    const interval = setInterval(fetchRefunds, 5 * 60 * 1000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchRefunds = async () => {
@@ -36,19 +37,7 @@ const AdminRefunds = () => {
       setError(null);
 
       const response = await api.get("/admin/refunds");
-      setRefunds(response.data.data);
-
-      // Check if any refunds were auto-completed
-      if (response.data.autoCompletedCount > 0) {
-        setUpdateSuccess(
-          `${response.data.autoCompletedCount} refunds were automatically completed after 5 days of processing`
-        );
-
-        // Clear the message after 5 seconds
-        setTimeout(() => {
-          setUpdateSuccess(null);
-        }, 5000);
-      }
+      setRefunds(response.data.data || []);
     } catch (err) {
       console.error("Error fetching refunds:", err);
       setError("Could not load refund requests. Please try again.");
@@ -84,6 +73,38 @@ const AdminRefunds = () => {
       setError("Failed to update refund status. Please try again.");
     } finally {
       setUpdating(null);
+    }
+  };
+
+  const handleProcessRefunds = async () => {
+    try {
+      setProcessingRefunds(true);
+      setError(null);
+      setUpdateSuccess(null);
+
+      const response = await api.post('/admin/refunds/process', { 
+        daysThreshold: parseInt(daysThreshold, 10) 
+      });
+
+      setShowProcessingModal(false);
+      
+      if (response.data.count > 0) {
+        setUpdateSuccess(`Successfully processed ${response.data.count} pending refunds`);
+        // Refresh the refunds list to show updated statuses
+        fetchRefunds();
+      } else {
+        setUpdateSuccess('No pending refunds needed processing');
+      }
+
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setUpdateSuccess(null);
+      }, 5000);
+    } catch (err) {
+      console.error('Error processing refunds:', err);
+      setError('Failed to process refunds. Please try again.');
+    } finally {
+      setProcessingRefunds(false);
     }
   };
 
@@ -130,12 +151,20 @@ const AdminRefunds = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Refund Management</h1>
-        <button
-          onClick={fetchRefunds}
-          className="bg-purple-600 text-white px-3 py-2 rounded-md flex items-center"
-        >
-          <FaSync className="mr-2" /> Refresh
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setShowProcessingModal(true)}
+            className="bg-blue-600 text-white px-3 py-2 rounded-md flex items-center hover:bg-blue-700"
+          >
+            <FaCogs className="mr-2" /> Process Pending Refunds
+          </button>
+          <button
+            onClick={fetchRefunds}
+            className="bg-purple-600 text-white px-3 py-2 rounded-md flex items-center hover:bg-purple-700"
+          >
+            <FaSync className="mr-2" /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -379,6 +408,62 @@ const AdminRefunds = () => {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Process Refunds Modal */}
+      {showProcessingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Process Pending Refunds</h3>
+            <p className="text-gray-600 mb-4">
+              This will automatically mark refunds that have been in "processing" status for longer than the specified number of days as "completed".
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Days Threshold
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="30"
+                value={daysThreshold}
+                onChange={(e) => setDaysThreshold(e.target.value)}
+                className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Refunds in "processing" status for this many days will be automatically completed
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowProcessingModal(false)}
+                className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md text-sm font-medium"
+                disabled={processingRefunds}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleProcessRefunds}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
+                disabled={processingRefunds}
+              >
+                {processingRefunds ? (
+                  <>
+                    <FaSpinner className="animate-spin mr-2" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <FaRunning className="mr-2" />
+                    Process Refunds
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

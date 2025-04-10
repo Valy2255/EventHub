@@ -1,5 +1,5 @@
 // src/pages/admin/AdminEvents.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   FaSpinner, 
   FaEdit, 
@@ -36,11 +36,8 @@ const AdminEvents = () => {
     hasPrev: false
   });
   
-  useEffect(() => {
-    fetchEvents();
-  }, [page, sort, status, search]);
-
-  const fetchEvents = async () => {
+  // Using useCallback to memoize the fetchEvents function
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -73,7 +70,11 @@ const AdminEvents = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, sort, status, search]); // Added fetchEvents dependencies
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]); // Now fetchEvents is properly included as a dependency
 
   const handleDeleteClick = (event) => {
     setEventToDelete(event);

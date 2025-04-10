@@ -447,3 +447,36 @@ export const deleteEvent = async (req, res, next) => {
     next(error);
   }
 };
+
+// Manual trigger for processing pending refunds (admin only)
+export const triggerRefundProcessing = async (req, res, next) => {
+  try {
+    const { daysThreshold } = req.body;
+    
+    // Use default of 5 days if not specified
+    const threshold = daysThreshold ? parseInt(daysThreshold, 10) : 5;
+    
+    if (isNaN(threshold) || threshold < 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Days threshold must be a positive number'
+      });
+    }
+    
+    // Import the Ticket model for refund processing
+    const Ticket = await import('../models/Ticket.js');
+    
+    // Process refunds that have been in 'processing' status for more than the threshold days
+    const processedRefunds = await Ticket.processAutomaticRefundCompletion(threshold);
+    
+    res.status(200).json({
+      success: true,
+      message: `Successfully processed ${processedRefunds.length} pending refunds`,
+      count: processedRefunds.length,
+      refunds: processedRefunds
+    });
+  } catch (error) {
+    console.error('Error triggering refund processing:', error);
+    next(error);
+  }
+};

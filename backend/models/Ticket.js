@@ -422,9 +422,10 @@ export const getAllRefunds = async () => {
 };
 
 /**
- * Process automatic refund completion for tickets in 'processing' status for more than 5 days
+ * Process refunds that have been in 'processing' status for more than the specified days
+ * This should be called by a scheduled job rather than using setTimeout
  */
-export const processAutomaticRefundCompletion = async () => {
+export const processAutomaticRefundCompletion = async (daysThreshold = 5) => {
   const query = {
     text: `
       UPDATE tickets
@@ -432,7 +433,7 @@ export const processAutomaticRefundCompletion = async () => {
           updated_at = CURRENT_TIMESTAMP
       WHERE status = 'cancelled'
       AND refund_status = 'processing'
-      AND cancelled_at < (CURRENT_TIMESTAMP - INTERVAL '5 days')
+      AND cancelled_at < (CURRENT_TIMESTAMP - INTERVAL '${daysThreshold} days')
       RETURNING id, event_id, ticket_type_id, user_id
     `,
     values: []

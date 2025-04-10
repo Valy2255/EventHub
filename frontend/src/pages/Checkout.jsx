@@ -10,6 +10,8 @@ import {
   FaArrowLeft,
   FaSpinner,
   FaCheck,
+  FaRegCreditCard,
+  FaRegCalendarAlt,
 } from "react-icons/fa";
 import { useAuth } from "../hooks/useAuth";
 import api from "../services/api";
@@ -36,6 +38,107 @@ const Checkout = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Card validation functions (directly implemented in component to avoid imports)
+  // Format credit card number with spaces (e.g., XXXX XXXX XXXX XXXX)
+  const formatCardNumber = (value) => {
+    const sanitized = value.replace(/\D/g, '');
+    const parts = [];
+    
+    for (let i = 0; i < sanitized.length; i += 4) {
+      parts.push(sanitized.substring(i, i + 4));
+    }
+    
+    return parts.join(' ').trim();
+  };
+
+  // Format expiry date with slash (MM/YY)
+  const formatExpiryDate = (value) => {
+    const sanitized = value.replace(/\D/g, '');
+    
+    if (sanitized.length > 2) {
+      return `${sanitized.substring(0, 2)}/${sanitized.substring(2, 4)}`;
+    }
+    
+    return sanitized;
+  };
+
+  // Validate credit card number (Luhn algorithm check)
+  const validateCardNumber = (cardNumber) => {
+    // Remove all non-digit characters
+    const sanitized = cardNumber.replace(/\D/g, '');
+    
+    if (sanitized.length < 13 || sanitized.length > 19) {
+      return { valid: false, message: 'Card number must be between 13 and 19 digits' };
+    }
+    
+    // Luhn algorithm check
+    let sum = 0;
+    let shouldDouble = false;
+    
+    // Loop through the digits in reverse order
+    for (let i = sanitized.length - 1; i >= 0; i--) {
+      let digit = parseInt(sanitized.charAt(i), 10);
+      
+      if (shouldDouble) {
+        digit *= 2;
+        if (digit > 9) digit -= 9;
+      }
+      
+      sum += digit;
+      shouldDouble = !shouldDouble;
+    }
+    
+    const valid = (sum % 10) === 0;
+    return { 
+      valid, 
+      message: valid ? '' : 'Invalid card number'
+    };
+  };
+
+  // Validate expiry date (MM/YY format)
+  const validateExpiryDate = (expiryDate) => {
+    // Check format (MM/YY)
+    if (!/^\d{2}\/\d{2}$/.test(expiryDate)) {
+      return { valid: false, message: 'Expiry date must be in MM/YY format' };
+    }
+    
+    const [monthStr, yearStr] = expiryDate.split('/');
+    const month = parseInt(monthStr, 10);
+    const year = parseInt(yearStr, 10) + 2000; // Convert YY to 20YY
+    
+    // Check if month is valid
+    if (month < 1 || month > 12) {
+      return { valid: false, message: 'Month must be between 01 and 12' };
+    }
+    
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+    const currentYear = now.getFullYear();
+    
+    // Check if the card is expired
+    if (year < currentYear || (year === currentYear && month < currentMonth)) {
+      return { valid: false, message: 'Card has expired' };
+    }
+    
+    // Check if the expiry date is too far in the future (typically cards are valid for max 10 years)
+    if (year > currentYear + 10) {
+      return { valid: false, message: 'Expiry date is too far in the future' };
+    }
+    
+    return { valid: true, message: '' };
+  };
+
+  // Validate CVV (3-4 digits)
+  const validateCVV = (cvv) => {
+    const sanitized = cvv.replace(/\D/g, '');
+    
+    if (sanitized.length < 3 || sanitized.length > 4) {
+      return { valid: false, message: 'CVV must be 3 or 4 digits' };
+    }
+    
+    return { valid: true, message: '' };
+  };
+
   // Use paymentSuccess in a conditional or remove the variable
   // If you need to keep it, use it somewhere:
   useEffect(() => {
@@ -44,6 +147,7 @@ const Checkout = () => {
       console.log("Payment processed successfully");
     }
   }, [paymentSuccess]);
+  
   // Load tickets from session storage
   useEffect(() => {
     const loadCheckoutData = async () => {
@@ -115,31 +219,51 @@ const Checkout = () => {
     return `${formattedHour}:${minutes} ${ampm}`;
   };
 
+  // Handle card number input change with formatting
+  const handleCardNumberChange = (e) => {
+    const formatted = formatCardNumber(e.target.value);
+    setCardNumber(formatted);
+    
+    // Clear validation error when typing
+    if (paymentErrors.cardNumber) {
+      setPaymentErrors({...paymentErrors, cardNumber: ''});
+    }
+  };
+  
+  // Handle expiry date input change with formatting
+  const handleExpiryDateChange = (e) => {
+    const formatted = formatExpiryDate(e.target.value);
+    setExpiryDate(formatted);
+    
+    // Clear validation error when typing
+    if (paymentErrors.expiryDate) {
+      setPaymentErrors({...paymentErrors, expiryDate: ''});
+    }
+  };
+
   // Validate payment form
   const validatePaymentForm = () => {
     const errors = {};
 
     if (paymentMethod === "card") {
-      if (!cardNumber.trim()) {
-        errors.cardNumber = "Card number is required";
-      } else if (!/^\d{16}$/.test(cardNumber.replace(/\s/g, ""))) {
-        errors.cardNumber = "Card number must be 16 digits";
+      // Use our improved validation functions
+      const cardNumberResult = validateCardNumber(cardNumber);
+      if (!cardNumberResult.valid) {
+        errors.cardNumber = cardNumberResult.message;
       }
 
       if (!cardName.trim()) {
         errors.cardName = "Cardholder name is required";
       }
 
-      if (!expiryDate.trim()) {
-        errors.expiryDate = "Expiry date is required";
-      } else if (!/^\d{2}\/\d{2}$/.test(expiryDate)) {
-        errors.expiryDate = "Expiry date must be in MM/YY format";
+      const expiryDateResult = validateExpiryDate(expiryDate);
+      if (!expiryDateResult.valid) {
+        errors.expiryDate = expiryDateResult.message;
       }
 
-      if (!cvv.trim()) {
-        errors.cvv = "CVV is required";
-      } else if (!/^\d{3,4}$/.test(cvv)) {
-        errors.cvv = "CVV must be 3 or 4 digits";
+      const cvvResult = validateCVV(cvv);
+      if (!cvvResult.valid) {
+        errors.cvv = cvvResult.message;
       }
     }
 
@@ -388,18 +512,21 @@ const Checkout = () => {
                   <label className="block text-gray-700 font-medium mb-2">
                     Card Number
                   </label>
-                  <input
-                    type="text"
-                    value={cardNumber}
-                    onChange={(e) => setCardNumber(e.target.value)}
-                    placeholder="1234 5678 9012 3456"
-                    className={`w-full p-3 border rounded-md ${
-                      paymentErrors.cardNumber
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
-                    maxLength="19"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={cardNumber}
+                      onChange={handleCardNumberChange}
+                      placeholder="1234 5678 9012 3456"
+                      className={`w-full p-3 pl-10 border rounded-md ${
+                        paymentErrors.cardNumber
+                          ? "border-red-500"
+                          : "border-gray-300"
+                      }`}
+                      maxLength="19"
+                    />
+                    <FaRegCreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  </div>
                   {paymentErrors.cardNumber && (
                     <p className="text-red-500 text-sm mt-1">
                       {paymentErrors.cardNumber}
@@ -434,18 +561,21 @@ const Checkout = () => {
                     <label className="block text-gray-700 font-medium mb-2">
                       Expiry Date
                     </label>
-                    <input
-                      type="text"
-                      value={expiryDate}
-                      onChange={(e) => setExpiryDate(e.target.value)}
-                      placeholder="MM/YY"
-                      className={`w-full p-3 border rounded-md ${
-                        paymentErrors.expiryDate
-                          ? "border-red-500"
-                          : "border-gray-300"
-                      }`}
-                      maxLength="5"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={expiryDate}
+                        onChange={handleExpiryDateChange}
+                        placeholder="MM/YY"
+                        className={`w-full p-3 pl-10 border rounded-md ${
+                          paymentErrors.expiryDate
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}
+                        maxLength="5"
+                      />
+                      <FaRegCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    </div>
                     {paymentErrors.expiryDate && (
                       <p className="text-red-500 text-sm mt-1">
                         {paymentErrors.expiryDate}
@@ -457,16 +587,19 @@ const Checkout = () => {
                     <label className="block text-gray-700 font-medium mb-2">
                       CVV
                     </label>
-                    <input
-                      type="text"
-                      value={cvv}
-                      onChange={(e) => setCvv(e.target.value)}
-                      placeholder="123"
-                      className={`w-full p-3 border rounded-md ${
-                        paymentErrors.cvv ? "border-red-500" : "border-gray-300"
-                      }`}
-                      maxLength="4"
-                    />
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={cvv}
+                        onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
+                        placeholder="123"
+                        className={`w-full p-3 pl-10 border rounded-md ${
+                          paymentErrors.cvv ? "border-red-500" : "border-gray-300"
+                        }`}
+                        maxLength="4"
+                      />
+                      <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    </div>
                     {paymentErrors.cvv && (
                       <p className="text-red-500 text-sm mt-1">
                         {paymentErrors.cvv}

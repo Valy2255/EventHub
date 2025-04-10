@@ -42,5 +42,6 @@ router.get('/dashboard/stats', adminController.getDashboardStats);
 // Refund management routes
 router.get('/refunds', adminController.getAllRefunds);
 router.put('/refunds/:id', adminController.approveRefund);
+router.post('/refunds/process', adminController.triggerRefundProcessing);
 
 export default router;

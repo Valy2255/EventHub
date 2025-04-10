@@ -1,22 +1,22 @@
 // backend/controllers/ticketController.js
-import * as Ticket from '../models/Ticket.js';
-import * as Payment from '../models/Payment.js';
-import * as TicketType from '../models/TicketType.js';
-import * as Event from '../models/Event.js';
+import * as Ticket from "../models/Ticket.js";
+import * as Payment from "../models/Payment.js";
+import * as TicketType from "../models/TicketType.js";
+import * as Event from "../models/Event.js";
 
 // Get all tickets for the authenticated user
 export const getUserTickets = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     const tickets = await Ticket.findByUser(userId);
-    
+
     // Group tickets by event for better organization
     const ticketsByEvent = {};
-    
-    tickets.forEach(ticket => {
+
+    tickets.forEach((ticket) => {
       const eventId = ticket.event_id;
-      
+
       if (!ticketsByEvent[eventId]) {
         ticketsByEvent[eventId] = {
           eventId,
@@ -25,19 +25,19 @@ export const getUserTickets = async (req, res, next) => {
           eventTime: ticket.time,
           eventVenue: ticket.venue,
           eventImage: ticket.image_url,
-          tickets: []
+          tickets: [],
         };
       }
-      
+
       ticketsByEvent[eventId].tickets.push(ticket);
     });
-    
+
     res.status(200).json({
       success: true,
-      data: Object.values(ticketsByEvent)
+      data: Object.values(ticketsByEvent),
     });
   } catch (error) {
-    console.error('Error fetching user tickets:', error);
+    console.error("Error fetching user tickets:", error);
     next(error);
   }
 };
@@ -46,15 +46,15 @@ export const getUserTickets = async (req, res, next) => {
 export const getUpcomingTickets = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     const tickets = await Ticket.findUpcomingByUser(userId);
-    
+
     // Group tickets by event
     const ticketsByEvent = {};
-    
-    tickets.forEach(ticket => {
+
+    tickets.forEach((ticket) => {
       const eventId = ticket.event_id;
-      
+
       if (!ticketsByEvent[eventId]) {
         ticketsByEvent[eventId] = {
           eventId,
@@ -63,19 +63,19 @@ export const getUpcomingTickets = async (req, res, next) => {
           eventTime: ticket.time,
           eventVenue: ticket.venue,
           eventImage: ticket.image_url,
-          tickets: []
+          tickets: [],
         };
       }
-      
+
       ticketsByEvent[eventId].tickets.push(ticket);
     });
-    
+
     res.status(200).json({
       success: true,
-      data: Object.values(ticketsByEvent)
+      data: Object.values(ticketsByEvent),
     });
   } catch (error) {
-    console.error('Error fetching upcoming tickets:', error);
+    console.error("Error fetching upcoming tickets:", error);
     next(error);
   }
 };
@@ -84,15 +84,15 @@ export const getUpcomingTickets = async (req, res, next) => {
 export const getPastTickets = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     const tickets = await Ticket.findPastByUser(userId);
-    
+
     // Group tickets by event
     const ticketsByEvent = {};
-    
-    tickets.forEach(ticket => {
+
+    tickets.forEach((ticket) => {
       const eventId = ticket.event_id;
-      
+
       if (!ticketsByEvent[eventId]) {
         ticketsByEvent[eventId] = {
           eventId,
@@ -101,19 +101,19 @@ export const getPastTickets = async (req, res, next) => {
           eventTime: ticket.time,
           eventVenue: ticket.venue,
           eventImage: ticket.image_url,
-          tickets: []
+          tickets: [],
         };
       }
-      
+
       ticketsByEvent[eventId].tickets.push(ticket);
     });
-    
+
     res.status(200).json({
       success: true,
-      data: Object.values(ticketsByEvent)
+      data: Object.values(ticketsByEvent),
     });
   } catch (error) {
-    console.error('Error fetching past tickets:', error);
+    console.error("Error fetching past tickets:", error);
     next(error);
   }
 };
@@ -123,36 +123,36 @@ export const getTicketById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    
+
     const ticket = await Ticket.findById(id);
-    
+
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        error: 'Ticket not found'
+        error: "Ticket not found",
       });
     }
-    
+
     // Check if the ticket belongs to the user
-    if (ticket.user_id !== userId && req.user.role !== 'admin') {
+    if (ticket.user_id !== userId && req.user.role !== "admin") {
       return res.status(403).json({
         success: false,
-        error: 'You do not have permission to view this ticket'
+        error: "You do not have permission to view this ticket",
       });
     }
-    
+
     // Get the event details
     const event = await Event.findById(ticket.event_id);
-    
+
     res.status(200).json({
       success: true,
       data: {
         ticket,
-        event
-      }
+        event,
+      },
     });
   } catch (error) {
-    console.error('Error fetching ticket:', error);
+    console.error("Error fetching ticket:", error);
     next(error);
   }
 };
@@ -227,18 +227,9 @@ export const requestRefund = async (req, res, next) => {
       });
     }
     
-    // Mark the ticket as cancelled
+    // Mark the ticket as cancelled with status 'requested'
     const cancelledTicket = await Ticket.updateToCancelled(id, 'requested');
     
-    setTimeout(async () => {
-      try {
-        await Ticket.updateRefundStatus(id, 'completed');
-        console.log(`Refund for ticket ${id} completed automatically`);
-      } catch (err) {
-        console.error(`Error updating refund status for ticket ${id}:`, err);
-      }
-    }, 60000); // Change after 1 minute (in a real system this would be days)
-
     // Update the ticket type availability - adding 1 back to available quantity
     try {
       await TicketType.increaseAvailability(ticket.ticket_type_id, 1);
@@ -247,12 +238,9 @@ export const requestRefund = async (req, res, next) => {
       // Continue with the refund process even if availability update fails
     }
     
-    // If the refund is successful, we should process a refund through the payment gateway
-    // This is a placeholder for now
-    
     res.status(200).json({
       success: true,
-      message: 'Ticket has been cancelled and refund has been processed',
+      message: 'Ticket has been cancelled and refund has been requested',
       data: {
         ticket: cancelledTicket
       }
@@ -267,76 +255,76 @@ export const requestRefund = async (req, res, next) => {
 export const validateTicket = async (req, res, next) => {
   try {
     const { qrCode } = req.body;
-    
+
     if (!qrCode) {
       return res.status(400).json({
         success: false,
-        error: 'QR code is required'
+        error: "QR code is required",
       });
     }
-    
+
     const ticket = await Ticket.validateQrCode(qrCode);
-    
+
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        error: 'Invalid or expired ticket'
+        error: "Invalid or expired ticket",
       });
     }
-    
+
     // Check if the ticket has already been used
     if (ticket.checked_in) {
       return res.status(400).json({
         success: false,
-        error: 'This ticket has already been used',
+        error: "This ticket has already been used",
         data: {
           ticket,
-          checkedInAt: ticket.checked_in_at
-        }
+          checkedInAt: ticket.checked_in_at,
+        },
       });
     }
-    
+
     // Check if the ticket is for a future event
     const eventDate = new Date(ticket.date);
     eventDate.setHours(0, 0, 0, 0);
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-    
+
     if (eventDate > now) {
       return res.status(200).json({
         success: true,
-        message: 'Valid ticket for a future event',
+        message: "Valid ticket for a future event",
         data: {
           ticket,
-          status: 'FUTURE_EVENT'
-        }
+          status: "FUTURE_EVENT",
+        },
       });
     }
-    
+
     // Check if the ticket is for today or past
     if (eventDate.getTime() === now.getTime()) {
       // Valid ticket for today
       return res.status(200).json({
         success: true,
-        message: 'Valid ticket for today\'s event',
+        message: "Valid ticket for today's event",
         data: {
           ticket,
-          status: 'VALID_TODAY'
-        }
+          status: "VALID_TODAY",
+        },
       });
     } else {
       // Ticket for past event
       return res.status(200).json({
         success: true,
-        message: 'Ticket is for a past event',
+        message: "Ticket is for a past event",
         data: {
           ticket,
-          status: 'PAST_EVENT'
-        }
+          status: "PAST_EVENT",
+        },
       });
     }
   } catch (error) {
-    console.error('Error validating ticket:', error);
+    console.error("Error validating ticket:", error);
     next(error);
   }
 };
@@ -345,41 +333,41 @@ export const validateTicket = async (req, res, next) => {
 export const checkInTicket = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
+
     // Find the ticket
     const ticket = await Ticket.findById(id);
-    
+
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        error: 'Ticket not found'
+        error: "Ticket not found",
       });
     }
-    
+
     // Check if the ticket is already checked in
     if (ticket.checked_in) {
       return res.status(400).json({
         success: false,
-        error: 'This ticket has already been checked in',
+        error: "This ticket has already been checked in",
         data: {
           ticket,
-          checkedInAt: ticket.checked_in_at
-        }
+          checkedInAt: ticket.checked_in_at,
+        },
       });
     }
-    
+
     // Update check-in status
     const updatedTicket = await Ticket.updateCheckinStatus(id, true);
-    
+
     res.status(200).json({
       success: true,
-      message: 'Ticket checked in successfully',
+      message: "Ticket checked in successfully",
       data: {
-        ticket: updatedTicket
-      }
+        ticket: updatedTicket,
+      },
     });
   } catch (error) {
-    console.error('Error checking in ticket:', error);
+    console.error("Error checking in ticket:", error);
     next(error);
   }
 };
@@ -389,36 +377,38 @@ export const updateTicketStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    
-    if (!['purchased', 'cancelled', 'expired'].includes(status)) {
+
+    if (!["purchased", "cancelled", "expired"].includes(status)) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid status. Status must be one of: purchased, cancelled, expired'
+        error:
+          "Invalid status. Status must be one of: purchased, cancelled, expired",
       });
     }
-    
+
     // Find the ticket
     const ticket = await Ticket.findById(id);
-    
+
     if (!ticket) {
       return res.status(404).json({
         success: false,
-        error: 'Ticket not found'
+        error: "Ticket not found",
       });
     }
-    
+
     // Update status based on the requested status
     let updatedTicket;
-    
-    if (status === 'purchased') {
+
+    if (status === "purchased") {
       // For purchased status, we would need the QR code
       return res.status(400).json({
         success: false,
-        error: 'Cannot directly update to purchased status. Use the payment flow instead.'
+        error:
+          "Cannot directly update to purchased status. Use the payment flow instead.",
       });
-    } else if (status === 'cancelled') {
+    } else if (status === "cancelled") {
       updatedTicket = await Ticket.updateToCancelled(id);
-      
+
       // Update ticket type availability
       await TicketType.updateAvailability(ticket.ticket_type_id, 1);
     } else {
@@ -430,22 +420,22 @@ export const updateTicketStatus = async (req, res, next) => {
           WHERE id = $1
           RETURNING *
         `,
-        values: [id, status]
+        values: [id, status],
       };
-      
+
       const result = await db.query(query);
       updatedTicket = result.rows[0];
     }
-    
+
     res.status(200).json({
       success: true,
       message: `Ticket status updated to ${status}`,
       data: {
-        ticket: updatedTicket
-      }
+        ticket: updatedTicket,
+      },
     });
   } catch (error) {
-    console.error('Error updating ticket status:', error);
+    console.error("Error updating ticket status:", error);
     next(error);
   }
 };
@@ -454,15 +444,15 @@ export const updateTicketStatus = async (req, res, next) => {
 export const getCancelledTickets = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     const cancelledTickets = await Ticket.findCancelledByUser(userId);
-    
+
     res.status(200).json({
       success: true,
-      data: cancelledTickets
+      data: cancelledTickets,
     });
   } catch (error) {
-    console.error('Error fetching cancelled tickets:', error);
+    console.error("Error fetching cancelled tickets:", error);
     next(error);
   }
 };
