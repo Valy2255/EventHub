@@ -5,6 +5,7 @@ import AdminLayout from '../components/layout/AdminLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminUsers from '../pages/admin/AdminUsers';
 import AdminEvents from '../pages/admin/AdminEvents';
+import AdminEventForm from '../pages/admin/AdminEventForm';
 import AdminCategories from '../pages/admin/AdminCategories';
 import AdminSubcategories from '../pages/admin/AdminSubcategories';
 import AdminRefunds from '../pages/admin/AdminRefunds';
@@ -17,6 +18,8 @@ const AdminRoutes = () => {
           <Route index element={<AdminDashboard />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="events" element={<AdminEvents />} />
+          <Route path="events/new" element={<AdminEventForm />} />
+          <Route path="events/:id/edit" element={<AdminEventForm />} />
           <Route path="categories" element={<AdminCategories />} />
           <Route path="subcategories" element={<AdminSubcategories />} />
           <Route path="refunds" element={<AdminRefunds />} />

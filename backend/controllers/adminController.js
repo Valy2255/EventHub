@@ -2,6 +2,7 @@
 import * as User from '../models/User.js';
 import * as db from '../config/db.js';
 import * as Ticket from '../models/Ticket.js';
+import * as Event from '../models/Event.js';
 
 // Get all users (admin only)
 export const getAllUsers = async (req, res, next) => {
@@ -310,14 +311,41 @@ export const getEventById = async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    const event = await Event.findById(id);
+    // Use direct database query instead of Event.findById
+    const eventQuery = {
+      text: `
+        SELECT e.*, 
+               c.name as category_name, c.slug as category_slug,
+               s.name as subcategory_name, s.slug as subcategory_slug,
+               u.name as organizer_name
+        FROM events e
+        LEFT JOIN categories c ON e.category_id = c.id
+        LEFT JOIN subcategories s ON e.subcategory_id = s.id
+        LEFT JOIN users u ON e.organizer_id = u.id
+        WHERE e.id = $1
+      `,
+      values: [id]
+    };
+    
+    const eventResult = await db.query(eventQuery);
+    const event = eventResult.rows[0];
     
     if (!event) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
     
     // Get ticket types
-    const ticketTypes = await TicketType.findByEventId(id);
+    const ticketTypesQuery = {
+      text: `
+        SELECT * FROM ticket_types
+        WHERE event_id = $1
+        ORDER BY price ASC
+      `,
+      values: [id]
+    };
+    
+    const ticketTypesResult = await db.query(ticketTypesQuery);
+    const ticketTypes = ticketTypesResult.rows;
     
     // Get tickets sold
     const ticketsSoldQuery = {
@@ -347,54 +375,226 @@ export const getEventById = async (req, res, next) => {
 };
 
 // Create new event (admin)
+// Update the createEvent function in adminController.js
+// Update the createEvent function in adminController.js to handle null values better
 export const createEvent = async (req, res, next) => {
   try {
     const eventData = req.body;
     
-    // Validate event data
-    if (!eventData.name || !eventData.date) {
+    console.log('Creating event with data:', eventData);
+    
+    // Validate required fields
+    const requiredFields = ['name', 'slug', 'description', 'date', 'venue', 'address', 'city', 'category_id'];
+    const missingFields = requiredFields.filter(field => !eventData[field]);
+    
+    if (missingFields.length > 0) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Please provide all required fields' 
+        error: `Missing required fields: ${missingFields.join(', ')}` 
       });
     }
     
-    // Create event
-    const event = await Event.create(eventData);
+    // Filter out any fields that shouldn't be directly inserted
+    const allowedFields = [
+      'name', 'slug', 'description', 'date', 'time', 'end_time', 'venue', 'address', 'city', 
+      'image_url', 'category_id', 'subcategory_id', 'organizer_id', 
+      'min_price', 'max_price', 'status', 'cancellation_policy', 'featured'
+    ];
+    
+    const fieldsToInsert = {};
+    
+    // Process each field, ensuring the correct data type
+    Object.keys(eventData).forEach(key => {
+      if (allowedFields.includes(key)) {
+        const value = eventData[key];
+        
+        // Skip undefined values
+        if (value === undefined) return;
+        
+        // Skip empty strings for numeric fields (they'll be NULL in the database)
+        if (['category_id', 'subcategory_id', 'organizer_id', 'min_price', 'max_price'].includes(key)) {
+          if (value === null || value === '') {
+            // Don't include this field, it will be NULL by default
+            return;
+          }
+        }
+        
+        // Handle boolean fields
+        if (key === 'featured') {
+          fieldsToInsert[key] = value === true || value === 'true';
+        } 
+        // Handle other fields
+        else {
+          fieldsToInsert[key] = value;
+        }
+      }
+    });
+    
+    // Create a query to insert the event
+    const fields = Object.keys(fieldsToInsert);
+    const placeholders = fields.map((_, index) => `$${index + 1}`);
+    const values = Object.values(fieldsToInsert);
+    
+    if (fields.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No valid fields to insert' 
+      });
+    }
+    
+    const createQuery = {
+      text: `
+        INSERT INTO events(${fields.join(', ')})
+        VALUES(${placeholders.join(', ')})
+        RETURNING *
+      `,
+      values
+    };
+    
+    console.log('Insert query:', createQuery.text);
+    console.log('Insert values:', values);
+    
+    const result = await db.query(createQuery);
+    const newEvent = result.rows[0];
+    
+    console.log('Event created successfully:', newEvent.id);
     
     res.status(201).json({
       success: true,
-      data: event
+      data: newEvent
     });
+    
   } catch (error) {
     console.error('Error creating event:', error);
-    next(error);
+    // Return more detailed error information
+    res.status(500).json({
+      success: false,
+      error: 'Server error creating event',
+      details: error.message
+    });
   }
 };
 
 // Update event (admin)
+// Add this to the updateEvent function in adminController.js to handle null values better
 export const updateEvent = async (req, res, next) => {
   try {
     const { id } = req.params;
     const eventData = req.body;
     
-    // Check if event exists
-    const existingEvent = await Event.findById(id);
+    console.log('Updating event with ID:', id);
+    console.log('Event data received:', eventData);
     
-    if (!existingEvent) {
+    // Check if event exists using direct query
+    const checkQuery = {
+      text: 'SELECT id FROM events WHERE id = $1',
+      values: [id]
+    };
+    
+    const checkResult = await db.query(checkQuery);
+    
+    if (checkResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
     
-    // Update event
-    const event = await Event.update(id, eventData);
+    // Filter out any fields that shouldn't be directly updated
+    const allowedFields = [
+      'name', 'slug', 'description', 'date', 'time', 'end_time', 'venue', 'address', 'city', 
+      'image_url', 'category_id', 'subcategory_id', 'organizer_id', 
+      'min_price', 'max_price', 'status', 'cancellation_policy', 'featured'
+    ];
+    
+    // Construct the update query with only allowed fields
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    // Process each field, ensuring the correct data type
+    Object.keys(eventData).forEach((key) => {
+      if (allowedFields.includes(key)) {
+        const value = eventData[key];
+        
+        // Skip undefined values
+        if (value === undefined) return;
+        
+        // Handle numeric fields - nullify empty strings
+        if (['category_id', 'subcategory_id', 'organizer_id', 'min_price', 'max_price'].includes(key)) {
+          if (value === null || value === '') {
+            updates.push(`${key} = NULL`);
+          } else {
+            updates.push(`${key} = $${paramIndex}`);
+            values.push(value);
+            paramIndex++;
+          }
+        }
+        // Handle boolean fields
+        else if (key === 'featured') {
+          updates.push(`${key} = $${paramIndex}`);
+          values.push(value === true || value === 'true');
+          paramIndex++;
+        }
+        // Handle other fields
+        else {
+          updates.push(`${key} = $${paramIndex}`);
+          values.push(value);
+          paramIndex++;
+        }
+      }
+    });
+    
+    // If there are no fields to update, return early
+    if (updates.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No valid fields to update' 
+      });
+    }
+    
+    // Add updated_at timestamp
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    
+    // Add event ID as the last parameter
+    values.push(id);
+    
+    const updateQuery = {
+      text: `
+        UPDATE events
+        SET ${updates.join(', ')}
+        WHERE id = $${paramIndex}
+        RETURNING *
+      `,
+      values
+    };
+    
+    console.log('Update query:', updateQuery.text);
+    console.log('Update values:', values);
+    
+    const result = await db.query(updateQuery);
+    
+    if (result.rows.length === 0) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to update event' 
+      });
+    }
+    
+    const updatedEvent = result.rows[0];
+    
+    console.log('Event updated successfully:', updatedEvent.id);
     
     res.status(200).json({
       success: true,
-      data: event
+      data: updatedEvent
     });
+    
   } catch (error) {
     console.error('Error updating event:', error);
-    next(error);
+    // Return more detailed error information
+    res.status(500).json({
+      success: false,
+      error: 'Server error updating event',
+      details: error.message
+    });
   }
 };
 

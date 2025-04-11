@@ -20,58 +20,85 @@ const AdminLayout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [pendingRefunds, setPendingRefunds] = useState(0);
-  const [subcategoriesCount, setSubcategoriesCount] = useState(0);
+  const [stats, setStats] = useState({
+    pendingRefunds: 0,
+    subcategories: 0,
+    events: 0,
+    users: 0,
+    categories: 0
+  });
 
   useEffect(() => {
-    // Fetch pending refunds count
-    const fetchRefundsCount = async () => {
+    // Fetch dashboard stats
+    const fetchStats = async () => {
       try {
-        const response = await api.get("/admin/refunds");
-        setPendingRefunds(response.data.count || 0);
+        // Get dashboard stats
+        const dashboardResponse = await api.get("/admin/dashboard/stats");
+        
+        // Get refunds count
+        const refundsResponse = await api.get("/admin/refunds");
+        
+        // Get subcategories count
+        const subcategoriesResponse = await api.get("/admin/subcategories");
+        
+        setStats({
+          events: dashboardResponse.data.stats?.events || 0,
+          users: dashboardResponse.data.stats?.users || 0,
+          categories: dashboardResponse.data.stats?.categories || 0,
+          pendingRefunds: refundsResponse.data.count || 0,
+          subcategories: (subcategoriesResponse.data.subcategories || []).length || 0
+        });
       } catch (error) {
-        console.error("Error fetching refund count:", error);
+        console.error("Error fetching stats:", error);
       }
     };
 
-    // Fetch subcategories count
-    const fetchSubcategoriesCount = async () => {
-      try {
-        const response = await api.get("/admin/subcategories");
-        setSubcategoriesCount((response.data.subcategories || []).length);
-      } catch (error) {
-        console.error("Error fetching subcategories count:", error);
-      }
-    };
-
-    fetchRefundsCount();
-    fetchSubcategoriesCount();
+    fetchStats();
 
     // Refresh every 5 minutes
     const interval = setInterval(() => {
-      fetchRefundsCount();
-      fetchSubcategoriesCount();
+      fetchStats();
     }, 5 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, []);
 
   const navItems = [
-    { path: "/admin", label: "Dashboard", icon: <FaTachometerAlt /> },
-    { path: "/admin/users", label: "Users", icon: <FaUsers /> },
-    { path: "/admin/events", label: "Events", icon: <FaCalendarAlt /> },
-    { path: "/admin/categories", label: "Categories", icon: <FaList /> },
+    { 
+      path: "/admin", 
+      label: "Dashboard", 
+      icon: <FaTachometerAlt />,
+      badge: null // Dashboard typically doesn't need a badge
+    },
+    { 
+      path: "/admin/users", 
+      label: "Users", 
+      icon: <FaUsers />,
+      badge: stats.users > 0 ? stats.users : null 
+    },
+    { 
+      path: "/admin/events", 
+      label: "Events", 
+      icon: <FaCalendarAlt />,
+      badge: stats.events > 0 ? stats.events : null 
+    },
+    { 
+      path: "/admin/categories", 
+      label: "Categories", 
+      icon: <FaList />,
+      badge: stats.categories > 0 ? stats.categories : null 
+    },
     {
       path: "/admin/subcategories",
       label: "Subcategories",
       icon: <FaList />,
-      badge: subcategoriesCount > 0 ? subcategoriesCount : null,
+      badge: stats.subcategories > 0 ? stats.subcategories : null,
     },
     {
       path: "/admin/refunds",
       label: "Refunds",
       icon: <FaMoneyBillWave />,
-      badge: pendingRefunds > 0 ? pendingRefunds : null,
+      badge: stats.pendingRefunds > 0 ? stats.pendingRefunds : null,
     },
   ];
 
@@ -137,7 +164,9 @@ const AdminLayout = () => {
                 <span className="mr-3">{item.icon}</span>
                 <span className="flex-1">{item.label}</span>
                 {item.badge && (
-                  <span className="bg-red-500 text-white text-xs font-medium py-0.5 px-2 rounded-full">
+                  <span className={`text-white text-xs font-medium py-0.5 px-2 rounded-full ${
+                    item.path === "/admin/refunds" ? "bg-red-500" : "bg-blue-500"
+                  }`}>
                     {item.badge}
                   </span>
                 )}
@@ -171,7 +200,9 @@ const AdminLayout = () => {
                     <span className="mr-3">{item.icon}</span>
                     <span className="flex-1">{item.label}</span>
                     {item.badge && (
-                      <span className="bg-red-500 text-white text-xs font-medium py-0.5 px-2 rounded-full">
+                      <span className={`text-white text-xs font-medium py-0.5 px-2 rounded-full ${
+                        item.path === "/admin/refunds" ? "bg-red-500" : "bg-blue-500"
+                      }`}>
                         {item.badge}
                       </span>
                     )}

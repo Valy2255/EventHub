@@ -86,11 +86,21 @@ const AdminEvents = () => {
     
     try {
       setLoading(true);
+      setError(null);
       
-      await api.delete(`/admin/events/${eventToDelete.id}`);
+      // Call the delete API endpoint
+      const response = await api.delete(`/admin/events/${eventToDelete.id}`);
       
+      // Remove the event from the list
       setEvents(events.filter(event => event.id !== eventToDelete.id));
-      setSuccess('Event deleted successfully');
+      
+      // Show success message
+      setSuccess(
+        response.data.message || 
+        (eventToDelete.tickets_sold > 0 
+          ? 'Event has been cancelled since tickets have been sold'
+          : 'Event deleted successfully')
+      );
       
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -98,14 +108,16 @@ const AdminEvents = () => {
       }, 3000);
     } catch (err) {
       console.error('Error deleting event:', err);
-      setError('Failed to delete event. Please try again.');
+      setError(
+        err.response?.data?.error || 
+        'Failed to delete event. Please try again.'
+      );
     } finally {
       setLoading(false);
       setShowDeleteModal(false);
       setEventToDelete(null);
     }
   };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
   };
