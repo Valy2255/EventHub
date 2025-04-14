@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import crypto from 'crypto';
 import { sendTicketEmail } from '../utils/emailService.js';
 
+
 // Process payment and create tickets
 export const processPayment = async (req, res, next) => {
   try {
@@ -70,34 +71,36 @@ export const processPayment = async (req, res, next) => {
         
         // Create tickets
         for (let i = 0; i < quantity; i++) {
-          // Generate unique QR code data
-          const ticketData = {
-            ticketId: `T${Date.now()}-${crypto.randomBytes(8).toString('hex')}`,
-            eventId,
-            eventName: event.name,
-            eventDate: event.date,
-            ticketType: ticketType.name,
-            userId,
-            timestamp: Date.now()
-          };
-          
-          // Create QR code
-          const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(ticketData));
-          
-          // Create ticket in database
+          // First, create ticket in database
           const ticket = await Ticket.createPurchased(client, {
             ticket_type_id: ticketTypeIdNum,
             user_id: userId,
             event_id: eventId,
             price,
-            qr_code: qrCodeDataUrl
+            qr_code: null // We'll update this after getting the database ID
           });
+          
+          // Now that we have the ticket ID, create the secure QR code data
+          const secureTicketData = {
+            id: ticket.id, // Database ID for reliable lookup
+            hash: Ticket.generateTicketHash(ticket.id, eventId, userId), // Security signature
+            v: 1 // Version for future compatibility
+          };
+          
+          // Generate QR code with the compact, secure data
+          const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(secureTicketData));
+          
+          // Update the ticket with the QR code
+          const updatedTicket = await client.query(
+            'UPDATE tickets SET qr_code = $1 WHERE id = $2 RETURNING *',
+            [qrCodeDataUrl, ticket.id]
+          );
           
           // Link ticket to payment
           await Payment.linkTicketToPayment(client, payment.id, ticket.id);
           
           createdTickets.push({
-            ...ticket,
+            ...updatedTicket.rows[0],
             qr_code: qrCodeDataUrl,
             event_name: event.name,
             ticket_type_name: ticketType.name,
@@ -109,25 +112,21 @@ export const processPayment = async (req, res, next) => {
         
         // Update available quantity for ticket type
         try {
-          // Use the ticketTypeIdNum and NOT client as first parameter
           await TicketType.updateAvailability(ticketTypeIdNum, -quantity);
         } catch (err) {
           console.warn('Error updating ticket availability:', err.message);
-          // Continue with the purchase even if availability update fails
-          // This is a safeguard but should be properly handled in production
         }
       }
       
       // Commit the transaction
       await client.query('COMMIT');
       
-      // Send ticket email to user (in a real app, this would be queued)
+      // Send ticket email to user
       try {
         const user = req.user;
         await sendTicketEmail(user.email, user.name, createdTickets, orderNumber);
       } catch (emailErr) {
         console.error('Error sending ticket email:', emailErr);
-        // Continue even if email fails, as the payment and tickets were successful
       }
       
       // Return success response

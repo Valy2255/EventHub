@@ -11,6 +11,7 @@ import searchRoutes from './routes/searchRoutes.js';
 import eventRoutes from './routes/eventRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import ticketRoutes from './routes/ticketRoutes.js';
+import checkInRoutes from './routes/checkInRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
 import * as scheduledTasks from './utils/scheduledTasks.js';
 import cron from 'node-cron';
@@ -55,6 +56,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/check-in', checkInRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

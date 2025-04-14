@@ -1,5 +1,6 @@
 // backend/models/Ticket.js
 import * as db from '../config/db.js';
+import crypto from 'crypto';
 
 // Find tickets by user and event
 export const findByUserAndEvent = async (userId, eventId) => {
@@ -141,17 +142,18 @@ export const updateToCancelled = async (id, refundStatus = 'requested') => {
   }
 };
 
-// Update ticket check-in status
-export const updateCheckinStatus = async (id, checkedIn) => {
+// Update to capture check-in agent information
+export const updateCheckinStatus = async (id, checkedIn, checkedInBy = null) => {
   const query = {
     text: `
       UPDATE tickets
       SET checked_in = $2,
-          checked_in_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE NULL END
+          checked_in_at = CASE WHEN $2 = true THEN CURRENT_TIMESTAMP ELSE NULL END,
+          checked_in_by = $3
       WHERE id = $1
       RETURNING *
     `,
-    values: [id, checkedIn]
+    values: [id, checkedIn, checkedInBy]
   };
   
   try {
@@ -446,4 +448,60 @@ export const processAutomaticRefundCompletion = async (daysThreshold = 5) => {
     console.error('Error processing automatic refund completion:', error);
     throw error;
   }
+};
+
+// Add these new functions to your Ticket.js model
+
+// Find ticket by QR code data
+export const findByQrData = async (qrData) => {
+  try {
+    // The qrData is expected to be a JSON string with ticketId and hash
+    const data = JSON.parse(qrData);
+    
+    if (!data || !data.id || !data.hash) {
+      throw new Error('Invalid QR code data format');
+    }
+    
+    const query = {
+      text: `
+        SELECT t.*, 
+              e.name as event_name, e.date, e.time, e.venue, e.address,
+              tt.name as ticket_type_name,
+              u.name as user_name, u.email as user_email
+        FROM tickets t
+        JOIN events e ON t.event_id = e.id
+        JOIN ticket_types tt ON t.ticket_type_id = tt.id
+        JOIN users u ON t.user_id = u.id
+        WHERE t.id = $1 AND t.status = 'purchased'
+      `,
+      values: [data.id]
+    };
+    
+    const result = await db.query(query);
+    const ticket = result.rows[0];
+    
+    if (!ticket) {
+      return null;
+    }
+    
+    // Verify the hash to prevent forgery
+    const expectedHash = generateTicketHash(ticket.id, ticket.event_id, ticket.user_id);
+    if (expectedHash !== data.hash) {
+      throw new Error('Invalid ticket signature');
+    }
+    
+    return ticket;
+  } catch (error) {
+    console.error('Error validating ticket by QR data:', error);
+    throw error;
+  }
+};
+
+// Generate hash for ticket verification
+export const generateTicketHash = (ticketId, eventId, userId) => {
+  const secret = process.env.QR_SECRET || 'eventhub-ticket-secret';
+  return crypto.createHmac('sha256', secret)
+    .update(`${ticketId}-${eventId}-${userId}`)
+    .digest('hex')
+    .substring(0, 16); // Shorten for smaller QR code
 };

@@ -9,6 +9,7 @@ import AdminEventForm from '../pages/admin/AdminEventForm';
 import AdminCategories from '../pages/admin/AdminCategories';
 import AdminSubcategories from '../pages/admin/AdminSubcategories';
 import AdminRefunds from '../pages/admin/AdminRefunds';
+import TicketCheckIn from '../pages/admin/TicketCheckIn';
 
 const AdminRoutes = () => {
   return (
@@ -23,6 +24,7 @@ const AdminRoutes = () => {
           <Route path="categories" element={<AdminCategories />} />
           <Route path="subcategories" element={<AdminSubcategories />} />
           <Route path="refunds" element={<AdminRefunds />} />
+          <Route path="check-in" element={<TicketCheckIn />} />
         </Route>
       </Route>
     </Routes>
