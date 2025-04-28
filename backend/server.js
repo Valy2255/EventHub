@@ -15,6 +15,7 @@ import checkInRoutes from './routes/checkInRoutes.js';
 import statisticsRoutes from './routes/statisticsRoutes.js';
 import newsletterRoutes from './routes/newsletterRoutes.js';
 import faqRoutes from './routes/faqRoutes.js';
+import legalDocumentRoutes from './routes/legalDocumentRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
 import * as scheduledTasks from './utils/scheduledTasks.js';
 import cron from 'node-cron';
@@ -73,6 +74,7 @@ app.use('/api/check-in', checkInRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/api/faqs', faqRoutes);
+app.use('/api/legal', legalDocumentRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

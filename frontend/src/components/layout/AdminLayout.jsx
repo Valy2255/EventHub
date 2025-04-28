@@ -12,7 +12,8 @@ import {
   FaBars,
   FaTimes,
   FaTicketAlt,
-  FaQuestion
+  FaQuestion,
+  FaFileAlt,
 } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import api from "../../services/api";
@@ -112,8 +113,14 @@ const AdminLayout = () => {
       path: "/admin/faqs",
       label: "FAQs",
       icon: <FaQuestion />,
-      badge: null, 
-    }
+      badge: null,
+    },
+    {
+      path: "/admin/legal-documents",
+      label: "Legal Documents",
+      icon: <FaFileAlt />,
+      badge: null,
+    },
   ];
 
   const isActive = (path) => {
