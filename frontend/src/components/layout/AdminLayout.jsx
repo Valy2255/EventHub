@@ -11,7 +11,8 @@ import {
   FaHome,
   FaBars,
   FaTimes,
-  FaTicketAlt
+  FaTicketAlt,
+  FaQuestion
 } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import api from "../../services/api";
@@ -107,6 +108,12 @@ const AdminLayout = () => {
       icon: <FaMoneyBillWave />,
       badge: stats.pendingRefunds > 0 ? stats.pendingRefunds : null,
     },
+    {
+      path: "/admin/faqs",
+      label: "FAQs",
+      icon: <FaQuestion />,
+      badge: null, 
+    }
   ];
 
   const isActive = (path) => {

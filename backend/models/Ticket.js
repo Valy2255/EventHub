@@ -266,8 +266,6 @@ export const findPastByUser = async (userId) => {
   }
 };
 
-// Add this function to your models/Ticket.js file
-
 /**
  * Find all cancelled tickets for a user and organize them by event
  */
@@ -503,5 +501,5 @@ export const generateTicketHash = (ticketId, eventId, userId) => {
   return crypto.createHmac('sha256', secret)
     .update(`${ticketId}-${eventId}-${userId}`)
     .digest('hex')
-    .substring(0, 16); // Shorten for smaller QR code
+    .substring(0, 16);
 };

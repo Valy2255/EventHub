@@ -4,7 +4,6 @@ import admin from '../middleware/admin.js';
 import * as categoryController from '../controllers/categoryController.js';
 import * as adminController from '../controllers/adminController.js';
 import * as subcategoryController from '../controllers/subcategoryController.js';
-import * as eventController from '../controllers/eventController.js';
 const router = express.Router();
 
 // Middleware-ul de autentificare și verificare a rolului admin

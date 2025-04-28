@@ -9,6 +9,7 @@ import AdminEventForm from '../pages/admin/AdminEventForm';
 import AdminCategories from '../pages/admin/AdminCategories';
 import AdminSubcategories from '../pages/admin/AdminSubcategories';
 import AdminRefunds from '../pages/admin/AdminRefunds';
+import AdminFAQs from '../pages/admin/AdminFAQs';
 import TicketCheckIn from '../pages/admin/TicketCheckIn';
 
 const AdminRoutes = () => {
@@ -23,6 +24,7 @@ const AdminRoutes = () => {
           <Route path="events/:id/edit" element={<AdminEventForm />} />
           <Route path="categories" element={<AdminCategories />} />
           <Route path="subcategories" element={<AdminSubcategories />} />
+          <Route path="faqs" element={<AdminFAQs />} />
           <Route path="refunds" element={<AdminRefunds />} />
           <Route path="check-in" element={<TicketCheckIn />} />
         </Route>
