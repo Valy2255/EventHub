@@ -1,10 +1,7 @@
 // backend/utils/scheduledTasks.js
 import * as Ticket from '../models/Ticket.js';
+import * as db from '../config/db.js';
 
-/**
- * Process refunds that have been in 'processing' status for the specified threshold days
- * This function should be called periodically (e.g., daily) by a scheduler
- */
 export const processRefunds = async (daysThreshold = 5) => {
   try {
     console.log(`Running scheduled task: Processing refunds pending for more than ${daysThreshold} days...`);
@@ -19,3 +16,20 @@ export const processRefunds = async (daysThreshold = 5) => {
     throw error;
   }
 };
+
+export const cleanupPastEvents = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    
+    const { rowCount } = await db.query(`
+      UPDATE events 
+      SET status = 'inactive' 
+      WHERE date < $1 AND status = 'active'
+    `, [today]);
+    
+    console.log(`Updated ${rowCount} past events to inactive status`);
+  } catch (error) {
+    console.error('Error cleaning up past events:', error);
+  }
+};
+

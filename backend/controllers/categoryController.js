@@ -73,12 +73,16 @@ export const deleteCategory = async (req, res, next) => {
 // Get all categories with their subcategories
 export const getAllCategoriesWithSubcategories = async (req, res, next) => {
   try {
-    const categories = await Category.getAll();
+    // Get categories with event counts
+    const categories = await Category.getAllWithEventCounts();
     
-    // For each category, get subcategories
+    // Get total events count
+    const totalEvents = await Category.getTotalEventsCount();
+    
+    // For each category, get subcategories with event counts
     const categoriesWithSubcategories = await Promise.all(
       categories.map(async (category) => {
-        const subcategories = await Subcategory.getAll(category.id);
+        const subcategories = await Subcategory.getAllWithEventCounts(category.id);
         return {
           ...category,
           subcategories
@@ -86,7 +90,11 @@ export const getAllCategoriesWithSubcategories = async (req, res, next) => {
       })
     );
     
-    res.json({ categories: categoriesWithSubcategories });
+    res.json({ 
+      categories: categoriesWithSubcategories,
+      totalEvents,
+      count: categories.length
+    });
   } catch (error) {
     next(error);
   }
@@ -219,3 +227,60 @@ export const getSubcategoriesForCategory = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get upcoming events across all categories
+export const getUpcomingEvents = async (req, res, next) => {
+  try {
+    let { limit = 6 } = req.query;
+    limit = parseInt(limit);
+    
+    const events = await Category.getUpcomingEvents(limit);
+    
+    res.json({
+      events,
+      count: events.length
+    });
+  } catch (error) {
+    console.error('Error fetching upcoming events:', error);
+    next(error);
+  }
+};
+
+// Get upcoming events with filtering options
+export const getUpcomingEventsFiltered = async (req, res, next) => {
+  try {
+    const { 
+      limit = 6, 
+      categoryId = null, 
+      location = null, 
+      startDate = null, 
+      endDate = null,
+      lat = null,
+      lng = null
+    } = req.query;
+    
+    // Convert string parameters to the correct types
+    const options = {
+      limit: parseInt(limit),
+      categoryId: categoryId ? parseInt(categoryId) : null,
+      location,
+      startDate,
+      endDate,
+      lat,
+      lng
+    };
+    
+    const events = await Category.getUpcomingEventsFiltered(options);
+    
+    res.json({
+      events,
+      count: events.length
+    });
+  } catch (error) {
+    console.error('Error fetching filtered upcoming events:', error);
+    next(error);
+  }
+};
+
+ 
+  

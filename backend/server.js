@@ -12,6 +12,8 @@ import eventRoutes from './routes/eventRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import ticketRoutes from './routes/ticketRoutes.js';
 import checkInRoutes from './routes/checkInRoutes.js';
+import statisticsRoutes from './routes/statisticsRoutes.js';
+import newsletterRoutes from './routes/newsletterRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
 import * as scheduledTasks from './utils/scheduledTasks.js';
 import cron from 'node-cron';
@@ -29,9 +31,19 @@ const initScheduledTasks = () => {
       console.error('Error running scheduled refund task:', error);
     }
   });
+
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      await scheduledTasks.cleanupPastEvents();
+    } catch (error) {
+      console.error('Error running scheduled cleanup task:', error);
+    }
+  });
   
   console.log('Scheduled tasks initialized');
 };
+
+
 
 // Create a global database connection pool
 global.pool = new pg.Pool({
@@ -57,6 +69,8 @@ app.use('/api/events', eventRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/check-in', checkInRoutes);
+app.use('/api/statistics', statisticsRoutes);
+app.use('/api/newsletter', newsletterRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

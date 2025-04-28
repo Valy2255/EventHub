@@ -7,11 +7,13 @@ import {
   FaMapMarkerAlt,
   FaChevronDown,
   FaSpinner,
+  FaTimes,
 } from "react-icons/fa";
 import { useAuth } from "../../hooks/useAuth";
 import HeaderDropdown from "./HeaderDropdown";
 import DatePicker from "../search/DatePicker";
 import RecentlyViewedEvents from "../search/RecentlyViewedEvents";
+import searchService from "../../services/searchService";
 
 export default function Header() {
   const [searchText, setSearchText] = useState("");
@@ -32,6 +34,11 @@ export default function Header() {
   const [userLocation, setUserLocation] = useState(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
 
+  // New states for search suggestions
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+
   const wideSearchRef = useRef(null);
   const rightSearchRef = useRef(null);
   const locationDropdownRef = useRef(null);
@@ -44,6 +51,8 @@ export default function Header() {
   // Determine if we are on a category/subcategory page
   const isCategoryPage = pathname.includes("/events/category");
   const isSearchPage = pathname.includes("/events/search");
+
+  const isAdmin = user && user.role === "admin";
 
   useEffect(() => {
     // Reset search parameters when on the home page
@@ -64,12 +73,14 @@ export default function Header() {
         !wideSearchRef.current.contains(event.target)
       ) {
         setIsWideSearchFocused(false);
+        setShowSuggestions(false);
       }
       if (
         rightSearchRef.current &&
         !rightSearchRef.current.contains(event.target)
       ) {
         setIsRightSearchFocused(false);
+        setShowSuggestions(false);
       }
       if (
         locationDropdownRef.current &&
@@ -82,6 +93,7 @@ export default function Header() {
         !searchInputRef.current.contains(event.target)
       ) {
         setIsWideSearchFocused(false);
+        setShowSuggestions(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -90,8 +102,35 @@ export default function Header() {
     };
   }, []);
 
+  // New effect to fetch search suggestions as user types
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (searchText && searchText.length >= 2) {
+        setIsFetchingSuggestions(true);
+        try {
+          const response = await searchService.quickSearch(searchText);
+          setSearchSuggestions(response.events || []);
+        } catch (error) {
+          console.error("Error fetching suggestions:", error);
+        } finally {
+          setIsFetchingSuggestions(false);
+        }
+      } else {
+        setSearchSuggestions([]);
+      }
+    };
+
+    // Use debounce to avoid excessive API calls
+    const timeoutId = setTimeout(() => {
+      if (searchText && searchText.length >= 2) {
+        fetchSuggestions();
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchText]);
+
   // Get user's location with explicit permission prompt
-  // Enhanced getUserLocation function to add to SearchFilter.jsx and Header.jsx
   const getUserLocation = () => {
     if (navigator.geolocation) {
       setIsGettingLocation(true);
@@ -149,12 +188,6 @@ export default function Header() {
   };
 
   // Handler for main search bar
-  // This is the updated handleMainSearch function for Header.jsx
-  // Replace the existing function with this one
-
-  // This is the complete updated handleMainSearch function for Header.jsx
-  // Replace the existing function with this one to fix the date issue
-
   const handleMainSearch = async (e) => {
     e.preventDefault();
     setIsSearching(true);
@@ -217,6 +250,7 @@ export default function Header() {
     } finally {
       setIsSearching(false);
       setIsWideSearchFocused(false);
+      setShowSuggestions(false);
     }
   };
 
@@ -232,7 +266,30 @@ export default function Header() {
     } finally {
       setIsSearching(false);
       setIsRightSearchFocused(false);
+      setShowSuggestions(false);
     }
+  };
+
+  // New handler for when user selects a search suggestion
+  const handleSuggestionSelect = (suggestion) => {
+    if (suggestion && suggestion.id) {
+      navigate(`/events/${suggestion.id}`);
+      searchService.addToRecentlyViewed(suggestion);
+      setShowSuggestions(false);
+      setIsWideSearchFocused(false);
+      setIsRightSearchFocused(false);
+    }
+  };
+
+  // Updated handler for search input focus
+  const handleSearchFocus = (isWide = true) => {
+    if (isWide) {
+      setIsWideSearchFocused(true);
+    } else {
+      setIsRightSearchFocused(true);
+    }
+    // Only show suggestions if user has typed something
+    setShowSuggestions(searchText.length >= 2);
   };
 
   return (
@@ -258,10 +315,26 @@ export default function Header() {
                   type="text"
                   placeholder="Search by Artist, Event or Venue"
                   value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  onFocus={() => setIsRightSearchFocused(true)}
+                  onChange={(e) => {
+                    setSearchText(e.target.value);
+                    setShowSuggestions(e.target.value.length >= 2);
+                  }}
+                  onFocus={() => handleSearchFocus(false)}
                   className="bg-white text-gray-800 px-4 py-2 pr-10 rounded-full w-80 focus:outline-none border border-gray-300"
                 />
+                {searchText && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchText("");
+                      setSearchSuggestions([]);
+                      setShowSuggestions(false);
+                    }}
+                    className="absolute right-10 text-gray-400 hover:text-gray-600"
+                  >
+                    <FaTimes />
+                  </button>
+                )}
                 <button
                   onClick={handleTopRightSearch}
                   className="absolute right-3 text-purple-600"
@@ -269,12 +342,70 @@ export default function Header() {
                   <FaSearch />
                 </button>
               </div>
-              {isRightSearchFocused && (
-                <RecentlyViewedEvents
-                  isVisible={true}
-                  onClose={() => setIsRightSearchFocused(false)}
-                  onEventSelect={() => setIsRightSearchFocused(false)}
-                />
+
+              {/* Show search suggestions when typing in right search bar */}
+              {isRightSearchFocused && showSuggestions ? (
+                <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-md shadow-lg border border-gray-200">
+                  <div className="max-h-96 overflow-y-auto">
+                    {isFetchingSuggestions ? (
+                      <div className="flex justify-center items-center py-4">
+                        <FaSpinner
+                          className="animate-spin text-purple-600"
+                          size={20}
+                        />
+                      </div>
+                    ) : searchSuggestions.length > 0 ? (
+                      <>
+                        <div className="p-3 border-b border-gray-200">
+                          <h3 className="font-semibold text-gray-800">
+                            Search Results
+                          </h3>
+                        </div>
+                        {searchSuggestions.map((suggestion) => (
+                          <div
+                            key={suggestion.id}
+                            className="p-4 hover:bg-gray-50 border-b border-gray-200 flex items-center cursor-pointer"
+                            onClick={() => handleSuggestionSelect(suggestion)}
+                          >
+                            <div className="w-10 h-10 bg-gray-200 rounded overflow-hidden mr-3 flex-shrink-0">
+                              {suggestion.image_url && (
+                                <img
+                                  src={suggestion.image_url}
+                                  alt={suggestion.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
+                            </div>
+                            <div className="flex-grow">
+                              <div className="font-medium text-gray-800">
+                                {suggestion.name}
+                              </div>
+                              <div className="text-sm text-gray-600 flex items-center">
+                                <FaMapMarkerAlt
+                                  className="mr-1 text-gray-400"
+                                  size={10}
+                                />
+                                {suggestion.venue}, {suggestion.city}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="p-4 text-center text-gray-500">
+                        No results found for "{searchText}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                isRightSearchFocused && (
+                  <RecentlyViewedEvents
+                    isVisible={true}
+                    onClose={() => setIsRightSearchFocused(false)}
+                    onEventSelect={() => setIsRightSearchFocused(false)}
+                  />
+                )
               )}
             </div>
           )}
@@ -304,12 +435,14 @@ export default function Header() {
                     >
                       My Tickets
                     </Link>
-                    <Link
-                      to="/admin"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      Admin Dashboard
-                    </Link>
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Admin Dashboard
+                      </Link>
+                    )}
                     <button
                       onClick={logout}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -470,19 +603,91 @@ export default function Header() {
                     type="text"
                     placeholder="Search by Artist, Event or Venue"
                     value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    onFocus={() => setIsWideSearchFocused(true)}
+                    onChange={(e) => {
+                      setSearchText(e.target.value);
+                      setShowSuggestions(e.target.value.length >= 2);
+                    }}
+                    onFocus={() => handleSearchFocus(true)}
                     className="w-full py-2 outline-none text-gray-800 text-sm"
                   />
+                  {searchText && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchText("");
+                        setSearchSuggestions([]);
+                        setShowSuggestions(false);
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <FaTimes />
+                    </button>
+                  )}
                 </div>
 
-                {/* Only show recently viewed dropdown when search input is focused */}
-                {isWideSearchFocused && (
-                  <RecentlyViewedEvents
-                    isVisible={true}
-                    onClose={() => setIsWideSearchFocused(false)}
-                    onEventSelect={() => setIsWideSearchFocused(false)}
-                  />
+                {/* Show search suggestions when typing in main search bar */}
+                {isWideSearchFocused && showSuggestions ? (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-white rounded-md shadow-lg border border-gray-200">
+                    <div className="max-h-96 overflow-y-auto">
+                      {isFetchingSuggestions ? (
+                        <div className="flex justify-center items-center py-4">
+                          <FaSpinner
+                            className="animate-spin text-purple-600"
+                            size={20}
+                          />
+                        </div>
+                      ) : searchSuggestions.length > 0 ? (
+                        <>
+                          <div className="p-3 border-b border-gray-200">
+                            <h3 className="font-semibold text-gray-800">
+                              Search Results
+                            </h3>
+                          </div>
+                          {searchSuggestions.map((suggestion) => (
+                            <div
+                              key={suggestion.id}
+                              className="p-4 hover:bg-gray-50 border-b border-gray-200 flex items-center cursor-pointer"
+                              onClick={() => handleSuggestionSelect(suggestion)}
+                            >
+                              <div className="w-10 h-10 bg-gray-200 rounded overflow-hidden mr-3 flex-shrink-0">
+                                {suggestion.image_url && (
+                                  <img
+                                    src={suggestion.image_url}
+                                    alt={suggestion.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                )}
+                              </div>
+                              <div className="flex-grow">
+                                <div className="font-medium text-gray-800">
+                                  {suggestion.name}
+                                </div>
+                                <div className="text-sm text-gray-600 flex items-center">
+                                  <FaMapMarkerAlt
+                                    className="mr-1 text-gray-400"
+                                    size={10}
+                                  />
+                                  {suggestion.venue}, {suggestion.city}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <div className="p-4 text-center text-gray-500">
+                          No results found for "{searchText}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  isWideSearchFocused && (
+                    <RecentlyViewedEvents
+                      isVisible={true}
+                      onClose={() => setIsWideSearchFocused(false)}
+                      onEventSelect={() => setIsWideSearchFocused(false)}
+                    />
+                  )
                 )}
               </div>
 
@@ -490,6 +695,7 @@ export default function Header() {
               <button
                 type="submit"
                 className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-8 rounded-r-md transition duration-200"
+                
                 disabled={isSearching}
               >
                 {isSearching ? (

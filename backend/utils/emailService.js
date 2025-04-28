@@ -1,6 +1,6 @@
 // backend/utils/emailService.js
-import nodemailer from 'nodemailer';
-import config from '../config/config.js';
+import nodemailer from "nodemailer";
+import config from "../config/config.js";
 
 // Create a transporter for sending emails
 const transporter = nodemailer.createTransport({
@@ -9,26 +9,26 @@ const transporter = nodemailer.createTransport({
   secure: config.email.secure,
   auth: {
     user: config.email.user,
-    pass: config.email.pass
-  }
+    pass: config.email.pass,
+  },
 });
 
 // Format date for display in emails
 const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric'
+  return new Date(dateString).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 };
 
 // Format time for display in emails
 const formatTime = (timeString) => {
-  if (!timeString) return '';
-  const [hours, minutes] = timeString.split(':');
+  if (!timeString) return "";
+  const [hours, minutes] = timeString.split(":");
   const hour = parseInt(hours, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const ampm = hour >= 12 ? "PM" : "AM";
   const formattedHour = hour % 12 || 12;
   return `${formattedHour}:${minutes} ${ampm}`;
 };
@@ -39,7 +39,7 @@ export const sendWelcomeEmail = async (email, name) => {
     const mailOptions = {
       from: `"${config.email.fromName}" <${config.email.user}>`,
       to: email,
-      subject: 'Welcome to EventHub!',
+      subject: "Welcome to EventHub!",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #9333ea; padding: 20px; text-align: center; color: white;">
@@ -62,13 +62,13 @@ export const sendWelcomeEmail = async (email, name) => {
             <p>This email was sent to ${email}. If you didn't create an account, please ignore this email.</p>
           </div>
         </div>
-      `
+      `,
     };
-    
+
     await transporter.sendMail(mailOptions);
     console.log(`Welcome email sent to ${email}`);
   } catch (error) {
-    console.error('Error sending welcome email:', error);
+    console.error("Error sending welcome email:", error);
     throw error;
   }
 };
@@ -78,33 +78,33 @@ export const sendTicketEmail = async (email, name, tickets, orderNumber) => {
   try {
     // Group tickets by event
     const ticketsByEvent = {};
-    
 
-
-    tickets.forEach(ticket => {
+    tickets.forEach((ticket) => {
       if (!ticketsByEvent[ticket.event_id]) {
         ticketsByEvent[ticket.event_id] = {
           eventName: ticket.event_name,
           eventDate: ticket.date,
           eventTime: ticket.time,
           eventVenue: ticket.venue,
-          tickets: []
+          tickets: [],
         };
       }
-      
+
       ticketsByEvent[ticket.event_id].tickets.push(ticket);
     });
-    
+
     // Create HTML for ticket details
-    let ticketsHtml = '';
-    
-    Object.values(ticketsByEvent).forEach(eventTickets => {
+    let ticketsHtml = "";
+
+    Object.values(ticketsByEvent).forEach((eventTickets) => {
       ticketsHtml += `
         <div style="margin-bottom: 20px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
           <div style="background-color: #f5f5f5; padding: 15px; border-bottom: 1px solid #ddd;">
             <h3 style="margin: 0; color: #333;">${eventTickets.eventName}</h3>
             <p style="margin: 8px 0 0 0; color: #666;">
-              <strong>Date:</strong> ${formatDate(eventTickets.eventDate)} at ${formatTime(eventTickets.eventTime)}<br>
+              <strong>Date:</strong> ${formatDate(
+                eventTickets.eventDate
+              )} at ${formatTime(eventTickets.eventTime)}<br>
               <strong>Venue:</strong> ${eventTickets.eventVenue}
             </p>
           </div>
@@ -112,29 +112,34 @@ export const sendTicketEmail = async (email, name, tickets, orderNumber) => {
             <p><strong>Tickets:</strong></p>
             <ul style="padding-left: 20px;">
       `;
-      
-      eventTickets.tickets.forEach(ticket => {
+
+      eventTickets.tickets.forEach((ticket) => {
         ticketsHtml += `
           <li style="margin-bottom: 15px;">
-            <strong>${ticket.ticket_type_name}</strong> - $${parseFloat(ticket.price).toFixed(2)}
+            <strong>ID</strong> - ${ticket.id}<br>
+            <strong>${ticket.ticket_type_name}</strong> - $${parseFloat(
+          ticket.price
+        ).toFixed(2)}
             <div style="margin-top: 10px;">
-              <img src="${ticket.qr_code}" alt="Ticket QR Code" style="max-width: 200px; height: auto;">
+              <img src="${
+                ticket.qr_code
+              }" alt="Ticket QR Code" style="max-width: 200px; height: auto;">
             </div>
           </li>
         `;
       });
-      
+
       ticketsHtml += `
             </ul>
           </div>
         </div>
       `;
     });
-    
+
     const mailOptions = {
       from: `"${config.email.fromName}" <${config.email.user}>`,
       to: email,
-      subject: 'Your EventHub Tickets',
+      subject: "Your EventHub Tickets",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #9333ea; padding: 20px; text-align: center; color: white;">
@@ -155,7 +160,9 @@ export const sendTicketEmail = async (email, name, tickets, orderNumber) => {
             </div>
             
             <div style="margin-top: 30px;">
-              <p>You can also view your tickets in your <a href="${config.cors.origin}/profile/tickets" style="color: #9333ea; text-decoration: none;">account dashboard</a>.</p>
+              <p>You can also view your tickets in your <a href="${
+                config.cors.origin
+              }/profile/tickets" style="color: #9333ea; text-decoration: none;">account dashboard</a>.</p>
               <p>Important: Please bring your tickets (printed or on your mobile device) to the event for entry.</p>
             </div>
           </div>
@@ -163,13 +170,13 @@ export const sendTicketEmail = async (email, name, tickets, orderNumber) => {
             <p>This email was sent to ${email} regarding your recent purchase on EventHub.</p>
           </div>
         </div>
-      `
+      `,
     };
-    
+
     await transporter.sendMail(mailOptions);
     console.log(`Ticket email sent to ${email}`);
   } catch (error) {
-    console.error('Error sending ticket email:', error);
+    console.error("Error sending ticket email:", error);
     throw error;
   }
 };
@@ -180,7 +187,7 @@ export const sendPasswordResetEmail = async (email, resetUrl) => {
     const mailOptions = {
       from: `"${config.email.fromName}" <${config.email.user}>`,
       to: email,
-      subject: 'Password Reset Request',
+      subject: "Password Reset Request",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #9333ea; padding: 20px; text-align: center; color: white;">
@@ -201,37 +208,47 @@ export const sendPasswordResetEmail = async (email, resetUrl) => {
             <p>This email was sent to ${email} regarding your EventHub account.</p>
           </div>
         </div>
-      `
+      `,
     };
-    
+
     await transporter.sendMail(mailOptions);
     console.log(`Password reset email sent to ${email}`);
   } catch (error) {
-    console.error('Error sending password reset email:', error);
+    console.error("Error sending password reset email:", error);
     throw error;
   }
 };
 
 // Send order confirmation email
-export const sendOrderConfirmationEmail = async (email, name, payment, tickets, orderNumber) => {
+export const sendOrderConfirmationEmail = async (
+  email,
+  name,
+  payment,
+  tickets,
+  orderNumber
+) => {
   try {
     const totalAmount = parseFloat(payment.amount).toFixed(2);
-    
+
     // Format ticket items
-    let ticketItems = '';
-    tickets.forEach(ticket => {
+    let ticketItems = "";
+    tickets.forEach((ticket) => {
       ticketItems += `
         <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${ticket.event_name} - ${ticket.ticket_type_name}</td>
-          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">$${parseFloat(ticket.price).toFixed(2)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd;">${
+            ticket.event_name
+          } - ${ticket.ticket_type_name}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">$${parseFloat(
+            ticket.price
+          ).toFixed(2)}</td>
         </tr>
       `;
     });
-    
+
     const mailOptions = {
       from: `"${config.email.fromName}" <${config.email.user}>`,
       to: email,
-      subject: 'Order Confirmation - EventHub',
+      subject: "Order Confirmation - EventHub",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #9333ea; padding: 20px; text-align: center; color: white;">
@@ -243,8 +260,12 @@ export const sendOrderConfirmationEmail = async (email, name, payment, tickets, 
             
             <div style="background-color: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 20px 0;">
               <p style="margin: 0;"><strong>Order Number:</strong> ${orderNumber}</p>
-              <p style="margin: 10px 0 0 0;"><strong>Date:</strong> ${new Date(payment.created_at).toLocaleDateString()}</p>
-              <p style="margin: 10px 0 0 0;"><strong>Payment Method:</strong> ${payment.payment_method}</p>
+              <p style="margin: 10px 0 0 0;"><strong>Date:</strong> ${new Date(
+                payment.created_at
+              ).toLocaleDateString()}</p>
+              <p style="margin: 10px 0 0 0;"><strong>Payment Method:</strong> ${
+                payment.payment_method
+              }</p>
             </div>
             
             <div style="margin-top: 30px;">
@@ -269,20 +290,22 @@ export const sendOrderConfirmationEmail = async (email, name, payment, tickets, 
             </div>
             
             <div style="text-align: center; margin-top: 30px;">
-              <a href="${config.cors.origin}/profile/tickets" style="background-color: #9333ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Your Tickets</a>
+              <a href="${
+                config.cors.origin
+              }/profile/tickets" style="background-color: #9333ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Your Tickets</a>
             </div>
           </div>
           <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
             <p>This email was sent to ${email} regarding your recent purchase on EventHub.</p>
           </div>
         </div>
-      `
+      `,
     };
-    
+
     await transporter.sendMail(mailOptions);
     console.log(`Order confirmation email sent to ${email}`);
   } catch (error) {
-    console.error('Error sending order confirmation email:', error);
+    console.error("Error sending order confirmation email:", error);
     throw error;
   }
 };

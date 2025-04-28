@@ -38,8 +38,6 @@ const Checkout = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Card validation functions (directly implemented in component to avoid imports)
-  // Format credit card number with spaces (e.g., XXXX XXXX XXXX XXXX)
   const formatCardNumber = (value) => {
     const sanitized = value.replace(/\D/g, '');
     const parts = [];
@@ -51,7 +49,6 @@ const Checkout = () => {
     return parts.join(' ').trim();
   };
 
-  // Format expiry date with slash (MM/YY)
   const formatExpiryDate = (value) => {
     const sanitized = value.replace(/\D/g, '');
     
@@ -62,20 +59,16 @@ const Checkout = () => {
     return sanitized;
   };
 
-  // Validate credit card number (Luhn algorithm check)
   const validateCardNumber = (cardNumber) => {
-    // Remove all non-digit characters
     const sanitized = cardNumber.replace(/\D/g, '');
     
     if (sanitized.length < 13 || sanitized.length > 19) {
       return { valid: false, message: 'Card number must be between 13 and 19 digits' };
     }
     
-    // Luhn algorithm check
     let sum = 0;
     let shouldDouble = false;
     
-    // Loop through the digits in reverse order
     for (let i = sanitized.length - 1; i >= 0; i--) {
       let digit = parseInt(sanitized.charAt(i), 10);
       
@@ -95,16 +88,14 @@ const Checkout = () => {
     };
   };
 
-  // Validate expiry date (MM/YY format)
   const validateExpiryDate = (expiryDate) => {
-    // Check format (MM/YY)
     if (!/^\d{2}\/\d{2}$/.test(expiryDate)) {
       return { valid: false, message: 'Expiry date must be in MM/YY format' };
     }
     
     const [monthStr, yearStr] = expiryDate.split('/');
     const month = parseInt(monthStr, 10);
-    const year = parseInt(yearStr, 10) + 2000; // Convert YY to 20YY
+    const year = parseInt(yearStr, 10) + 2000; 
     
     // Check if month is valid
     if (month < 1 || month > 12) {
@@ -112,15 +103,13 @@ const Checkout = () => {
     }
     
     const now = new Date();
-    const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+    const currentMonth = now.getMonth() + 1; 
     const currentYear = now.getFullYear();
     
-    // Check if the card is expired
     if (year < currentYear || (year === currentYear && month < currentMonth)) {
       return { valid: false, message: 'Card has expired' };
     }
     
-    // Check if the expiry date is too far in the future (typically cards are valid for max 10 years)
     if (year > currentYear + 10) {
       return { valid: false, message: 'Expiry date is too far in the future' };
     }
@@ -128,7 +117,6 @@ const Checkout = () => {
     return { valid: true, message: '' };
   };
 
-  // Validate CVV (3-4 digits)
   const validateCVV = (cvv) => {
     const sanitized = cvv.replace(/\D/g, '');
     
@@ -139,29 +127,21 @@ const Checkout = () => {
     return { valid: true, message: '' };
   };
 
-  // Use paymentSuccess in a conditional or remove the variable
-  // If you need to keep it, use it somewhere:
   useEffect(() => {
     if (paymentSuccess) {
-      // Maybe do something like clear the form or shopping cart
       console.log("Payment processed successfully");
     }
   }, [paymentSuccess]);
-  
-  // Load tickets from session storage
+
   useEffect(() => {
     const loadCheckoutData = async () => {
       try {
         setLoading(true);
-
-        // Check if user is logged in
         if (!user) {
-          // Redirect to login and return to checkout after login
           navigate("/login", { state: { from: "/checkout" } });
           return;
         }
 
-        // Get tickets from session storage
         const storedTickets = sessionStorage.getItem("checkoutTickets");
         const eventId = sessionStorage.getItem("eventId");
 
@@ -179,13 +159,11 @@ const Checkout = () => {
           }));
           setTickets(ticketData);
 
-        // Calculate total
         const total = ticketData.reduce((sum, ticket) => {
           return sum + ticket.price * ticket.quantity;
         }, 0);
         setTotalAmount(total);
 
-        // Fetch event details
         const response = await api.get(`/events/${eventId}`);
         setEvent(response.data.event);
       } catch (err) {
@@ -199,7 +177,6 @@ const Checkout = () => {
     loadCheckoutData();
   }, [user, navigate]);
 
-  // Format date for display
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       weekday: "long",
@@ -209,7 +186,6 @@ const Checkout = () => {
     });
   };
 
-  // Format time for display
   const formatTime = (timeString) => {
     if (!timeString) return "";
     const [hours, minutes] = timeString.split(":");
@@ -219,34 +195,28 @@ const Checkout = () => {
     return `${formattedHour}:${minutes} ${ampm}`;
   };
 
-  // Handle card number input change with formatting
   const handleCardNumberChange = (e) => {
     const formatted = formatCardNumber(e.target.value);
     setCardNumber(formatted);
     
-    // Clear validation error when typing
     if (paymentErrors.cardNumber) {
       setPaymentErrors({...paymentErrors, cardNumber: ''});
     }
   };
   
-  // Handle expiry date input change with formatting
   const handleExpiryDateChange = (e) => {
     const formatted = formatExpiryDate(e.target.value);
     setExpiryDate(formatted);
     
-    // Clear validation error when typing
     if (paymentErrors.expiryDate) {
       setPaymentErrors({...paymentErrors, expiryDate: ''});
     }
   };
 
-  // Validate payment form
   const validatePaymentForm = () => {
     const errors = {};
 
     if (paymentMethod === "card") {
-      // Use our improved validation functions
       const cardNumberResult = validateCardNumber(cardNumber);
       if (!cardNumberResult.valid) {
         errors.cardNumber = cardNumberResult.message;
@@ -270,26 +240,19 @@ const Checkout = () => {
     return errors;
   };
 
-  // Handle payment submission
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate form
     const formErrors = validatePaymentForm();
     if (Object.keys(formErrors).length > 0) {
       setPaymentErrors(formErrors);
       return;
     }
 
-    // Clear previous errors
     setPaymentErrors({});
     setSubmitting(true);
 
     try {
-      // In a real application, you would integrate with a payment gateway here
-      // For demo purposes, we'll simulate a successful payment
-
-      // Create a payment record
       const paymentResponse = await api.post("/payments", {
         amount: totalAmount,
         paymentMethod,
@@ -302,14 +265,11 @@ const Checkout = () => {
         })),
       });
 
-      // Set order number from response
       setOrderNumber(paymentResponse.data.orderNumber || "ORD-" + Date.now());
 
-      // Move to confirmation step
       setPaymentSuccess(true);
       setStep(3);
 
-      // Clear checkout data from session storage
       sessionStorage.removeItem("checkoutTickets");
       sessionStorage.removeItem("eventId");
     } catch (err) {
@@ -323,7 +283,6 @@ const Checkout = () => {
     }
   };
 
-  // Render page content based on step
   const renderContent = () => {
     if (loading) {
       return (
@@ -356,7 +315,6 @@ const Checkout = () => {
     }
   };
 
-  // Render order review step
   const renderOrderReview = () => {
     return (
       <div>

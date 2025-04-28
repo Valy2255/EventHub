@@ -91,3 +91,21 @@ export const getEvents = async (subcategoryId) => {
   const result = await db.query(query);
   return result.rows;
 };
+
+// Get all subcategories with event counts for a specific category
+export const getAllWithEventCounts = async (categoryId) => {
+  const query = {
+    text: `
+      SELECT s.*, COUNT(e.id) as event_count
+      FROM subcategories s
+      LEFT JOIN events e ON s.id = e.subcategory_id AND e.status = 'active'
+      WHERE s.category_id = $1
+      GROUP BY s.id
+      ORDER BY s.name ASC
+    `,
+    values: [categoryId]
+  };
+  
+  const result = await db.query(query);
+  return result.rows;
+};

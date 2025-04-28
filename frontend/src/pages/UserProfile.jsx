@@ -232,17 +232,6 @@ const UserProfile = () => {
           </div>
         </Link>
       </div>
-      
-      {/* Placeholder for Future Content */}
-      <div className="bg-white rounded-lg p-8 shadow-md text-center">
-        <h2 className="text-xl font-bold mb-2">Coming Soon</h2>
-        <p className="text-gray-600 mb-4">
-          We're working on more features for your profile page. Stay tuned!
-        </p>
-        <div className="text-purple-600 font-medium">
-          <Link to="/">Back to Home</Link>
-        </div>
-      </div>
     </div>
   );
 };
