@@ -12,6 +12,7 @@ import {
   FaCheck,
   FaRegCreditCard,
   FaRegCalendarAlt,
+  FaCoins,
 } from "react-icons/fa";
 import { useAuth } from "../hooks/useAuth";
 import api from "../services/api";
@@ -24,6 +25,8 @@ const Checkout = () => {
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState(1); // 1 = review, 2 = payment, 3 = confirmation
   const [totalAmount, setTotalAmount] = useState(0);
+  const [userCredits, setUserCredits] = useState(0);
+  const [loadingCredits, setLoadingCredits] = useState(false);
 
   // Payment form state
   const [paymentMethod, setPaymentMethod] = useState("card");
@@ -34,98 +37,120 @@ const Checkout = () => {
   const [paymentErrors, setPaymentErrors] = useState({});
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
 
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const navigate = useNavigate();
 
   const formatCardNumber = (value) => {
-    const sanitized = value.replace(/\D/g, '');
+    const sanitized = value.replace(/\D/g, "");
     const parts = [];
-    
+
     for (let i = 0; i < sanitized.length; i += 4) {
       parts.push(sanitized.substring(i, i + 4));
     }
-    
-    return parts.join(' ').trim();
+
+    return parts.join(" ").trim();
   };
 
   const formatExpiryDate = (value) => {
-    const sanitized = value.replace(/\D/g, '');
-    
+    const sanitized = value.replace(/\D/g, "");
+
     if (sanitized.length > 2) {
       return `${sanitized.substring(0, 2)}/${sanitized.substring(2, 4)}`;
     }
-    
+
     return sanitized;
   };
 
   const validateCardNumber = (cardNumber) => {
-    const sanitized = cardNumber.replace(/\D/g, '');
-    
+    const sanitized = cardNumber.replace(/\D/g, "");
+
     if (sanitized.length < 13 || sanitized.length > 19) {
-      return { valid: false, message: 'Card number must be between 13 and 19 digits' };
+      return {
+        valid: false,
+        message: "Card number must be between 13 and 19 digits",
+      };
     }
-    
+
     let sum = 0;
     let shouldDouble = false;
-    
+
     for (let i = sanitized.length - 1; i >= 0; i--) {
       let digit = parseInt(sanitized.charAt(i), 10);
-      
+
       if (shouldDouble) {
         digit *= 2;
         if (digit > 9) digit -= 9;
       }
-      
+
       sum += digit;
       shouldDouble = !shouldDouble;
     }
-    
-    const valid = (sum % 10) === 0;
-    return { 
-      valid, 
-      message: valid ? '' : 'Invalid card number'
+
+    const valid = sum % 10 === 0;
+    return {
+      valid,
+      message: valid ? "" : "Invalid card number",
     };
   };
 
   const validateExpiryDate = (expiryDate) => {
     if (!/^\d{2}\/\d{2}$/.test(expiryDate)) {
-      return { valid: false, message: 'Expiry date must be in MM/YY format' };
+      return { valid: false, message: "Expiry date must be in MM/YY format" };
     }
-    
-    const [monthStr, yearStr] = expiryDate.split('/');
+
+    const [monthStr, yearStr] = expiryDate.split("/");
     const month = parseInt(monthStr, 10);
-    const year = parseInt(yearStr, 10) + 2000; 
-    
+    const year = parseInt(yearStr, 10) + 2000;
+
     // Check if month is valid
     if (month < 1 || month > 12) {
-      return { valid: false, message: 'Month must be between 01 and 12' };
+      return { valid: false, message: "Month must be between 01 and 12" };
     }
-    
+
     const now = new Date();
-    const currentMonth = now.getMonth() + 1; 
+    const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
-    
+
     if (year < currentYear || (year === currentYear && month < currentMonth)) {
-      return { valid: false, message: 'Card has expired' };
+      return { valid: false, message: "Card has expired" };
     }
-    
+
     if (year > currentYear + 10) {
-      return { valid: false, message: 'Expiry date is too far in the future' };
+      return { valid: false, message: "Expiry date is too far in the future" };
     }
-    
-    return { valid: true, message: '' };
+
+    return { valid: true, message: "" };
   };
 
   const validateCVV = (cvv) => {
-    const sanitized = cvv.replace(/\D/g, '');
-    
+    const sanitized = cvv.replace(/\D/g, "");
+
     if (sanitized.length < 3 || sanitized.length > 4) {
-      return { valid: false, message: 'CVV must be 3 or 4 digits' };
+      return { valid: false, message: "CVV must be 3 or 4 digits" };
     }
-    
-    return { valid: true, message: '' };
+
+    return { valid: true, message: "" };
   };
+
+  useEffect(() => {
+    const loadUserCredits = async () => {
+      if (!user) return;
+
+      try {
+        setLoadingCredits(true);
+        const response = await api.get("/credits");
+        setUserCredits(response.data.credits);
+      } catch (err) {
+        console.error("Error loading user credits:", err);
+      } finally {
+        setLoadingCredits(false);
+      }
+    };
+
+    loadUserCredits();
+  }, [user]);
 
   useEffect(() => {
     if (paymentSuccess) {
@@ -134,48 +159,97 @@ const Checkout = () => {
   }, [paymentSuccess]);
 
   useEffect(() => {
-    const loadCheckoutData = async () => {
+  const loadCheckoutData = async () => {
+    // Skip loading if payment has already been completed
+    if (paymentCompleted) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      if (!user) {
+        navigate("/login", { state: { from: "/checkout" } });
+        return;
+      }
+      
+      const storedTickets = sessionStorage.getItem("checkoutTickets");
+      const eventId = sessionStorage.getItem("eventId");
+      
+      console.log('Checking session storage:', { 
+        hasStoredTickets: Boolean(storedTickets), 
+        hasEventId: Boolean(eventId) 
+      });
+      
+      // Only show the error if we're not already in the confirmation step
+      if ((!storedTickets || !eventId) && step !== 3) {
+        setError(
+          "No tickets selected. Please go back to the event page and select tickets."
+        );
+        setLoading(false);
+        return;
+      }
+      
+      // Skip the rest if we don't have ticket data and are in confirmation step
+      if ((!storedTickets || !eventId) && step === 3) {
+        setLoading(false);
+        return;
+      }
+      
       try {
-        setLoading(true);
-        if (!user) {
-          navigate("/login", { state: { from: "/checkout" } });
-          return;
-        }
-
-        const storedTickets = sessionStorage.getItem("checkoutTickets");
-        const eventId = sessionStorage.getItem("eventId");
-
-        if (!storedTickets || !eventId) {
-          setError(
-            "No tickets selected. Please go back to the event page and select tickets."
-          );
-          setLoading(false);
-          return;
-        }
-
-        const ticketData = JSON.parse(storedTickets).map(ticket => ({
-            ...ticket,
-            price: Number(ticket.price)
-          }));
-          setTickets(ticketData);
-
+        const ticketData = JSON.parse(storedTickets).map((ticket) => ({
+          ...ticket,
+          price: Number(ticket.price),
+        }));
+        setTickets(ticketData);
+        
         const total = ticketData.reduce((sum, ticket) => {
           return sum + ticket.price * ticket.quantity;
         }, 0);
         setTotalAmount(total);
-
+        
         const response = await api.get(`/events/${eventId}`);
         setEvent(response.data.event);
-      } catch (err) {
-        console.error("Error loading checkout data:", err);
+      } catch (parseError) {
+        console.error('Error processing ticket data:', parseError);
+        // Only show error if not in confirmation step
+        if (step !== 3) {
+          setError("Error processing ticket data. Please try again.");
+        }
+      }
+    } catch (err) {
+      console.error("Error loading checkout data:", err);
+      // Only show error if not in confirmation step
+      if (step !== 3) {
         setError("Error loading checkout data. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  loadCheckoutData();
+}, [user, navigate, paymentCompleted, step]);
+
+  // Also, add this useEffect to load user credits separately
+  useEffect(() => {
+    const loadUserCredits = async () => {
+      if (!user) return;
+
+      try {
+        setLoadingCredits(true);
+        const response = await api.get("/credits");
+        console.log("Loaded user credits:", response.data.credits);
+        setUserCredits(response.data.credits);
+      } catch (err) {
+        console.error("Error loading user credits:", err);
       } finally {
-        setLoading(false);
+        setLoadingCredits(false);
       }
     };
 
-    loadCheckoutData();
-  }, [user, navigate]);
+    loadUserCredits();
+  }, [user]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -198,25 +272,31 @@ const Checkout = () => {
   const handleCardNumberChange = (e) => {
     const formatted = formatCardNumber(e.target.value);
     setCardNumber(formatted);
-    
+
     if (paymentErrors.cardNumber) {
-      setPaymentErrors({...paymentErrors, cardNumber: ''});
+      setPaymentErrors({ ...paymentErrors, cardNumber: "" });
     }
   };
-  
+
   const handleExpiryDateChange = (e) => {
     const formatted = formatExpiryDate(e.target.value);
     setExpiryDate(formatted);
-    
+
     if (paymentErrors.expiryDate) {
-      setPaymentErrors({...paymentErrors, expiryDate: ''});
+      setPaymentErrors({ ...paymentErrors, expiryDate: "" });
     }
   };
 
   const validatePaymentForm = () => {
     const errors = {};
 
-    if (paymentMethod === "card") {
+    if (paymentMethod === "credits") {
+      if (userCredits < totalAmount) {
+        errors.general = `Insufficient credits. You need ${totalAmount.toFixed(
+          2
+        )} credits but have ${userCredits.toFixed(2)}.`;
+      }
+    } else if (paymentMethod === "card") {
       const cardNumberResult = validateCardNumber(cardNumber);
       if (!cardNumberResult.valid) {
         errors.cardNumber = cardNumberResult.message;
@@ -240,80 +320,101 @@ const Checkout = () => {
     return errors;
   };
 
+  // Improved handlePaymentSubmit function for Checkout.jsx
+
   const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const formErrors = validatePaymentForm();
-    if (Object.keys(formErrors).length > 0) {
-      setPaymentErrors(formErrors);
-      return;
-    }
+  const formErrors = validatePaymentForm();
+  if (Object.keys(formErrors).length > 0) {
+    setPaymentErrors(formErrors);
+    return;
+  }
 
-    setPaymentErrors({});
-    setSubmitting(true);
+  setPaymentErrors({});
+  setSubmitting(true);
 
-    try {
-      const paymentResponse = await api.post("/payments", {
-        amount: totalAmount,
-        paymentMethod,
-        currency: "USD",
-        tickets: tickets.map((ticket) => ({
-          ticketTypeId: ticket.ticketTypeId,
-          quantity: ticket.quantity,
-          price: ticket.price,
-          eventId: event.id,
-        })),
+  try {
+    // Payment request code...
+    const paymentResponse = await api.post("/payments", {
+      amount: totalAmount,
+      paymentMethod,
+      currency: "USD",
+      useCredits: paymentMethod === "credits",
+      tickets: tickets.map((ticket) => ({
+        ticketTypeId: ticket.ticketTypeId,
+        quantity: ticket.quantity,
+        price: ticket.price,
+        eventId: event.id,
+      })),
+    });
+
+    console.log('Payment successful:', paymentResponse.data);
+
+    // If payment was made with credits, update the local state
+    if (paymentMethod === "credits" && paymentResponse.data.currentCredits !== undefined) {
+      setUserCredits(paymentResponse.data.currentCredits);
+      // Update the user object in auth context
+      setUser({
+        ...user,
+        credits: paymentResponse.data.currentCredits
       });
-
-      setOrderNumber(paymentResponse.data.orderNumber || "ORD-" + Date.now());
-
-      setPaymentSuccess(true);
-      setStep(3);
-
-      sessionStorage.removeItem("checkoutTickets");
-      sessionStorage.removeItem("eventId");
-    } catch (err) {
-      console.error("Payment error:", err);
-      setPaymentErrors({
-        general:
-          err.response?.data?.error || "Payment failed. Please try again.",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <div className="flex justify-center items-center h-64">
-          <FaSpinner className="animate-spin text-purple-600 text-4xl" />
-        </div>
-      );
     }
 
-    if (error) {
-      return (
-        <div className="bg-red-100 text-red-700 p-4 rounded-md">
-          <p>{error}</p>
-          <Link
-            to="/"
-            className="text-purple-600 font-medium mt-4 inline-block"
-          >
-            Back to Home
-          </Link>
-        </div>
-      );
-    }
+    // Set these state variables BEFORE clearing session storage
+    setOrderNumber(paymentResponse.data.orderNumber || "ORD-" + Date.now());
+    setPaymentSuccess(true);
+    setPaymentCompleted(true); // Mark payment as completed
+    setStep(3);
 
-    if (step === 1) {
-      return renderOrderReview();
-    } else if (step === 2) {
-      return renderPaymentForm();
-    } else if (step === 3) {
-      return renderConfirmation();
-    }
-  };
+    // Now it's safe to clear the session storage
+    sessionStorage.removeItem("checkoutTickets");
+    sessionStorage.removeItem("eventId");
+  } catch (err) {
+    console.error("Payment error:", err);
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+// 4. Update renderContent to handle the payment completed state
+const renderContent = () => {
+  // If payment is completed and we're on step 3, always show confirmation
+  if (paymentCompleted && step === 3) {
+    return renderConfirmation();
+  }
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <FaSpinner className="animate-spin text-purple-600 text-4xl" />
+      </div>
+    );
+  }
+
+  // Only show error if we're not already in confirmation step
+  if (error && step !== 3) {
+    return (
+      <div className="bg-red-100 text-red-700 p-4 rounded-md">
+        <p>{error}</p>
+        <Link
+          to="/"
+          className="text-purple-600 font-medium mt-4 inline-block"
+        >
+          Back to Home
+        </Link>
+      </div>
+    );
+  }
+
+  if (step === 1) {
+    return renderOrderReview();
+  } else if (step === 2) {
+    return renderPaymentForm();
+  } else if (step === 3) {
+    return renderConfirmation();
+  }
+};
 
   const renderOrderReview = () => {
     return (
@@ -427,7 +528,7 @@ const Checkout = () => {
             {/* Payment method options */}
             <div className="mb-6">
               <h3 className="text-lg font-bold mb-3">Select Payment Method</h3>
-              <div className="flex space-x-4">
+              <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4">
                 <label
                   className={`flex items-center border rounded-md p-4 cursor-pointer ${
                     paymentMethod === "card"
@@ -459,6 +560,62 @@ const Checkout = () => {
                   >
                     Credit/Debit Card
                   </span>
+                </label>
+
+                <label
+                  className={`flex items-center border rounded-md p-4 ${
+                    paymentMethod === "credits"
+                      ? "border-purple-600 bg-purple-50"
+                      : "border-gray-300"
+                  } ${
+                    totalAmount > userCredits
+                      ? "cursor-not-allowed opacity-70"
+                      : "cursor-pointer"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="credits"
+                    checked={paymentMethod === "credits"}
+                    onChange={() =>
+                      totalAmount <= userCredits && setPaymentMethod("credits")
+                    }
+                    disabled={totalAmount > userCredits}
+                    className="sr-only"
+                  />
+                  <FaCoins
+                    className={`mr-2 ${
+                      paymentMethod === "credits"
+                        ? "text-purple-600"
+                        : "text-gray-400"
+                    }`}
+                  />
+                  <div className="flex flex-col">
+                    <span
+                      className={
+                        paymentMethod === "credits"
+                          ? "text-purple-600 font-medium"
+                          : "text-gray-600"
+                      }
+                    >
+                      Pay with Credits
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {loadingCredits ? (
+                        <FaSpinner className="animate-spin inline-block mr-1" />
+                      ) : (
+                        `Balance: ${parseFloat(userCredits).toFixed(2)} credits`
+                      )}
+                    </span>
+
+                    {totalAmount > userCredits && (
+                      <span className="text-xs text-red-500 mt-1">
+                        Insufficient credits. Need{" "}
+                        {(totalAmount - userCredits).toFixed(2)} more.
+                      </span>
+                    )}
+                  </div>
                 </label>
               </div>
             </div>
@@ -549,10 +706,14 @@ const Checkout = () => {
                       <input
                         type="text"
                         value={cvv}
-                        onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))}
+                        onChange={(e) =>
+                          setCvv(e.target.value.replace(/\D/g, ""))
+                        }
                         placeholder="123"
                         className={`w-full p-3 pl-10 border rounded-md ${
-                          paymentErrors.cvv ? "border-red-500" : "border-gray-300"
+                          paymentErrors.cvv
+                            ? "border-red-500"
+                            : "border-gray-300"
                         }`}
                         maxLength="4"
                       />

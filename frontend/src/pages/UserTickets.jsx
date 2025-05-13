@@ -17,18 +17,20 @@ import {
   FaInfoCircle,
   FaBan,
   FaSync,
+  FaExchangeAlt,
 } from "react-icons/fa";
+import { TicketExchangeModal } from "../components/ticket/TicketExchangeModal";
 import { useAuth } from "../hooks/useAuth";
 import api from "../services/api";
 
 // Refund Modal Component
-const TicketRefundModal = ({
+export function TicketRefundModal({
   ticket,
   event,
   onClose,
   onConfirm,
   isSubmitting,
-}) => {
+}) {
   // Format date
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -109,9 +111,9 @@ const TicketRefundModal = ({
       </div>
     </div>
   );
-};
+}
 
-const UserTickets = () => {
+export default function UserTickets() {
   const [tickets, setTickets] = useState([]);
   const [pastTickets, setPastTickets] = useState([]);
   const [cancelledTickets, setCancelledTickets] = useState([]);
@@ -125,6 +127,13 @@ const UserTickets = () => {
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  
+  // Exchange state variables
+  const [showExchangeModal, setShowExchangeModal] = useState(false);
+  const [availableTicketTypes, setAvailableTicketTypes] = useState([]);
+  const [exchangeError, setExchangeError] = useState(null);
+  const [exchangeSuccess, setExchangeSuccess] = useState(null);
+  const [exchangingTicket, setExchangingTicket] = useState(null);
 
   const { user } = useAuth();
 
@@ -240,6 +249,8 @@ const UserTickets = () => {
       setLoading(true);
       setCancellationError(null);
       setCancellationSuccess(null);
+      setExchangeError(null);
+      setExchangeSuccess(null);
 
       // Fetch updated ticket data
       const cancelledResponse = await api.get("/tickets/cancelled");
@@ -329,6 +340,76 @@ const UserTickets = () => {
       setCancellingTicket(null);
     }
   };
+
+  // Open the exchange modal
+  const openExchangeModal = async (ticket, event) => {
+    setSelectedTicket(ticket);
+    setSelectedEvent(event);
+    setExchangeError(null);
+    
+    // Fetch available ticket types for the event
+    try {
+      const response = await api.get(`/events/${event.eventId}/ticket-types`);
+      
+      // Filter out the current ticket type and sold out ticket types
+      const availableTypes = response.data.data.filter(
+        type => type.id !== ticket.ticket_type_id && type.available_quantity > 0
+      );
+      
+      setAvailableTicketTypes(availableTypes);
+      setShowExchangeModal(true);
+    } catch (err) {
+      console.error("Error fetching ticket types:", err);
+      setExchangeError("Could not load available ticket types for exchange. Please try again later.");
+    }
+  };
+
+  // Close the exchange modal
+  const closeExchangeModal = () => {
+    setShowExchangeModal(false);
+    setSelectedTicket(null);
+    setSelectedEvent(null);
+    setAvailableTicketTypes([]);
+  };
+
+  // Handle ticket exchange
+const handleExchangeTicket = async (newTicketType, responseData) => {
+  if (!selectedTicket || !newTicketType) return;
+
+  try {
+    setExchangingTicket(selectedTicket.id);
+    setExchangeError(null);
+    setExchangeSuccess(null);
+
+    // The exchange has already been processed by the modal
+    // Just handle the response message
+    const paymentMethod = responseData.data?.paymentMethod;
+    
+    setExchangeSuccess(
+      `Your ticket has been exchanged successfully to ${newTicketType.name}. ` + 
+      (parseFloat(newTicketType.price) > parseFloat(selectedTicket.price) 
+        ? `Your payment ${paymentMethod === 'card' ? 'by card' : 'with credits'} for the difference has been processed.` 
+        : parseFloat(newTicketType.price) < parseFloat(selectedTicket.price)
+          ? "A credit has been issued to your account."
+          : "")
+    );
+
+    // Refresh tickets
+    await refreshTickets();
+
+    // Close the modal
+    closeExchangeModal();
+  } catch (err) {
+    console.error("Error exchanging ticket:", err);
+    setExchangeError(
+      err.response?.data?.error ||
+        "Could not exchange the ticket. Please try again later."
+    );
+    closeExchangeModal();
+  } finally {
+    setExchangingTicket(null);
+  }
+};
 
   // Render the ticket list for an event
   const renderTicketList = (
@@ -460,17 +541,17 @@ const UserTickets = () => {
                         <div className="mt-2 mb-2">
                           <span
                             className={`px-2 py-1 text-xs font-medium rounded-full 
-          ${
-            ticket.refund_status === "completed"
-              ? "bg-green-100 text-green-800"
-              : ticket.refund_status === "processing"
-              ? "bg-blue-100 text-blue-800"
-              : ticket.refund_status === "failed"
-              ? "bg-red-100 text-red-800"
-              : ticket.refund_status === "denied"
-              ? "bg-gray-100 text-gray-800"
-              : "bg-yellow-100 text-yellow-800"
-          }`}
+                              ${
+                                ticket.refund_status === "completed"
+                                  ? "bg-green-100 text-green-800"
+                                  : ticket.refund_status === "processing"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : ticket.refund_status === "failed"
+                                  ? "bg-red-100 text-red-800"
+                                  : ticket.refund_status === "denied"
+                                  ? "bg-gray-100 text-gray-800"
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}
                           >
                             Refund:{" "}
                             {ticket.refund_status
@@ -533,6 +614,13 @@ const UserTickets = () => {
                           Download
                         </button>
                         <button
+                          onClick={() => openExchangeModal(ticket, eventGroup)}
+                          className="bg-blue-600 text-white px-3 py-1 rounded-md text-sm flex items-center hover:bg-blue-700"
+                        >
+                          <FaExchangeAlt className="mr-1" size={12} />
+                          Exchange
+                        </button>
+                        <button
                           onClick={() => openRefundModal(ticket, eventGroup)}
                           className="bg-red-600 text-white px-3 py-1 rounded-md text-sm flex items-center hover:bg-red-700"
                         >
@@ -584,6 +672,31 @@ const UserTickets = () => {
             <div>
               <p className="font-medium">Success</p>
               <p>{cancellationSuccess}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exchange messages */}
+      {exchangeError && (
+        <div className="bg-red-100 text-red-800 p-4 rounded-md mb-6">
+          <div className="flex items-start">
+            <FaTimesCircle className="mr-2 mt-1" />
+            <div>
+              <p className="font-medium">Exchange Error</p>
+              <p>{exchangeError}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {exchangeSuccess && (
+        <div className="bg-green-100 text-green-800 p-4 rounded-md mb-6">
+          <div className="flex items-start">
+            <FaCheckCircle className="mr-2 mt-1" />
+            <div>
+              <p className="font-medium">Exchange Success</p>
+              <p>{exchangeSuccess}</p>
             </div>
           </div>
         </div>
@@ -706,8 +819,18 @@ const UserTickets = () => {
           isSubmitting={cancellingTicket === selectedTicket.id}
         />
       )}
+
+      {/* Exchange Modal */}
+      {showExchangeModal && selectedTicket && selectedEvent && (
+        <TicketExchangeModal
+          ticket={selectedTicket}
+          event={selectedEvent}
+          availableTicketTypes={availableTicketTypes}
+          onClose={closeExchangeModal}
+          onConfirm={handleExchangeTicket}
+          isSubmitting={exchangingTicket === selectedTicket.id}
+        />
+      )}
     </div>
   );
-};
-
-export default UserTickets;
+}

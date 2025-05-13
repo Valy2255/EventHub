@@ -28,6 +28,8 @@ router.get('/:id', asyncHandler(ticketController.getTicketById));
 // Request ticket cancellation/refund
 router.post('/:id/refund', asyncHandler(ticketController.requestRefund));
 
+router.post('/:id/exchange', asyncHandler(ticketController.exchangeTicket));
+
 // Admin routes for ticket management
 router.use(admin);
 

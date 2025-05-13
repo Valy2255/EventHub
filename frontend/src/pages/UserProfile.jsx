@@ -1,5 +1,5 @@
 // src/pages/UserProfile.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   FaUser,
@@ -10,12 +10,15 @@ import {
   FaEdit,
   FaLock,
   FaSave,
-  FaSpinner
+  FaSpinner,
+  FaCoins,
+  FaExchangeAlt
 } from 'react-icons/fa';
 import { useAuth } from '../hooks/useAuth';
+import api from '../services/api';
 
 const UserProfile = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -23,6 +26,25 @@ const UserProfile = () => {
     profileImage: user?.profile_image || ''
   });
   const [saving, setSaving] = useState(false);
+  const [creditBalance, setCreditBalance] = useState(user?.credits || 0);
+  const [loading, setLoading] = useState(false);
+  
+  // Load current credit balance
+  useEffect(() => {
+    const loadCredits = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/credits');
+        setCreditBalance(response.data.credits);
+      } catch (err) {
+        console.error('Error loading credits:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadCredits();
+  }, []);
   
   // Handle input change
   const handleChange = (e) => {
@@ -38,13 +60,20 @@ const UserProfile = () => {
     e.preventDefault();
     setSaving(true);
     
-    // Simulate an API call
-    setTimeout(() => {
-      // In a real app, you would update the user profile via API
-      console.log('Profile update data:', formData);
+    try {
+      const response = await api.put('/users/profile', formData);
+      updateUser(response.data);
       setIsEditing(false);
+    } catch (err) {
+      console.error('Error updating profile:', err);
+    } finally {
       setSaving(false);
-    }, 1000);
+    }
+  };
+
+  // Format credits with 2 decimal places
+  const formatCredits = (credits) => {
+    return parseFloat(credits || 0).toFixed(2);
   };
   
   return (
@@ -169,13 +198,77 @@ const UserProfile = () => {
                 <span>{user?.email}</span>
               </div>
               
-              <div className="flex items-center">
+              <div className="flex items-center mb-2">
                 <FaUser className="text-gray-500 mr-2" />
                 <span>{user?.role === 'admin' ? 'Administrator' : 'User'}</span>
+              </div>
+              
+              {/* Credits display */}
+              <div className="flex items-center">
+                <FaCoins className="text-yellow-500 mr-2" />
+                <span className="font-medium">
+                  {loading ? (
+                    <FaSpinner className="animate-spin inline-block mr-1" />
+                  ) : (
+                    formatCredits(creditBalance)
+                  )} Credits
+                </span>
               </div>
             </div>
           </div>
         )}
+      </div>
+      
+      {/* Credits card */}
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg shadow-md p-6 mb-8 text-white">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold">Your Credits</h2>
+          <Link 
+            to="/profile/credits" 
+            className="bg-white text-purple-700 bg-opacity-20 hover:bg-opacity-30 px-3 py-1 rounded text-sm"
+          >
+            View History
+          </Link>
+        </div>
+        
+        <div className="flex items-center mb-4">
+          <div className="w-16 h-16 rounded-full bg-white bg-opacity-10 flex items-center justify-center mr-4">
+            <FaCoins className="text-3xl text-yellow-300" />
+          </div>
+          
+          <div>
+            <div className="text-4xl font-bold">
+              {loading ? (
+                <FaSpinner className="animate-spin text-white" />
+              ) : (
+                formatCredits(creditBalance)
+              )}
+            </div>
+            <div className="text-white text-opacity-80">Available Credits</div>
+          </div>
+        </div>
+        
+        <div className="text-sm text-white text-opacity-90 mb-4">
+          Use your credits to purchase tickets or upgrade existing tickets. 1 credit = $1.
+        </div>
+        
+        <div className="flex space-x-2">
+          <Link 
+            to="/events/search" 
+            className="bg-white text-purple-700 hover:bg-opacity-90 px-4 py-2 rounded-md font-medium flex items-center"
+          >
+            <FaTicketAlt className="mr-2" />
+            Use Credits
+          </Link>
+          
+          <Link 
+            to="/profile/tickets" 
+            className="bg-white text-purple-700 bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md font-medium flex items-center"
+          >
+            <FaExchangeAlt className="mr-2" />
+            Exchange Tickets
+          </Link>
+        </div>
       </div>
       
       {/* Quick links */}
@@ -220,15 +313,15 @@ const UserProfile = () => {
         </Link>
         
         <Link 
-          to="/profile/security" 
+          to="/profile/credits" 
           className="bg-white rounded-lg p-6 shadow-md hover:shadow-lg transition flex items-center"
         >
-          <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mr-4">
-            <FaLock className="text-red-600" />
+          <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center mr-4">
+            <FaCoins className="text-yellow-600" />
           </div>
           <div>
-            <h3 className="font-bold">Security</h3>
-            <p className="text-sm text-gray-600">Update password & security</p>
+            <h3 className="font-bold">Credits</h3>
+            <p className="text-sm text-gray-600">View credit history</p>
           </div>
         </Link>
       </div>

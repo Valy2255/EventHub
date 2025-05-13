@@ -22,6 +22,11 @@ import ContactPage from "./pages/ContactPage";
 import FAQPage from "./pages/FAQPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import RefundPage from "./pages/RefundPage";
+import CreditHistory from "./pages/CreditHistory";
+import TicketPage from "./pages/TicketPage";
+import PurchasePage from "./pages/PurchasePage";
+import PurchaseHistoryPage from "./pages/PurchaseHistoryPage";
 
 import { AuthProvider } from "./context/AuthContext";
 import AdminRoutes from "./routes/AdminRoutes";
@@ -63,6 +68,7 @@ function App() {
                     <Route path="/faq" element={<FAQPage />} />
                     <Route path="/terms" element={<TermsPage />} />
                     <Route path="/privacy" element={<PrivacyPage />} />
+                    <Route path="refunds" element={<RefundPage />} />
 
                     {/* Routes for categories and subcategories */}
                     <Route
@@ -85,8 +91,24 @@ function App() {
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/profile" element={<UserProfile />} />
                       <Route
+                        path="/profile/credits"
+                        element={<CreditHistory />}
+                      />
+                      <Route
                         path="/profile/tickets"
                         element={<UserTickets />}
+                      />
+                      <Route
+                        path="/profile/purchases"
+                        element={<PurchaseHistoryPage />}
+                      />
+                      <Route
+                        path="/profile/purchases/:id"
+                        element={<PurchasePage />}
+                      />
+                      <Route
+                        path="/profile/tickets/:id"
+                        element={<TicketPage />}
                       />
                     </Route>
 

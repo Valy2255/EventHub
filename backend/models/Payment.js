@@ -63,3 +63,27 @@ export const getPaymentTickets = async (paymentId) => {
   const result = await global.pool.query(query, [paymentId]);
   return result.rows;
 };
+
+// Find payments by payment method
+export const findByPaymentMethod = async (userId, paymentMethod) => {
+  const query = `
+    SELECT * FROM payments 
+    WHERE user_id = $1 AND payment_method = $2
+    ORDER BY created_at DESC
+  `;
+  
+  const result = await global.pool.query(query, [userId, paymentMethod]);
+  return result.rows;
+};
+
+// Get credit transactions associated with a payment
+export const getCreditTransactions = async (paymentId) => {
+  const query = `
+    SELECT ct.* 
+    FROM credit_transactions ct
+    WHERE ct.reference_id = $1 AND ct.reference_type = 'payment'
+  `;
+  
+  const result = await global.pool.query(query, [paymentId]);
+  return result.rows;
+};

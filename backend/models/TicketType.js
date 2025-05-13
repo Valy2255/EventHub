@@ -62,7 +62,7 @@ export const create = async (data) => {
   }
 };
 
-
+// Update available quantity
 export const updateAvailability = async (ticketTypeId, quantityChange) => {
   // Ensure parameters are valid numbers
   const typeId = parseInt(ticketTypeId, 10);
@@ -122,3 +122,6 @@ export const decreaseAvailability = async (ticketTypeId, quantity) => {
 export const increaseAvailability = async (ticketTypeId, quantity) => {
   return updateAvailability(ticketTypeId, Math.abs(quantity));
 };
+
+
+

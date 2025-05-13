@@ -65,3 +65,31 @@ export const incrementViewCount = async (req, res, next) => {
     next(error);
   }
 };
+
+// Get all ticket types for an event
+export const getEventTicketTypes = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if the event exists
+    const event = await Event.findById(id);
+    
+    if (!event) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Event not found' 
+      });
+    }
+    
+    // Fetch ticket types for this event
+    const ticketTypes = await TicketType.findByEventId(id);
+    
+    res.status(200).json({
+      success: true,
+      data: ticketTypes
+    });
+  } catch (error) {
+    console.error('Error fetching event ticket types:', error);
+    next(error);
+  }
+};

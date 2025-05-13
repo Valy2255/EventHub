@@ -503,3 +503,27 @@ export const generateTicketHash = (ticketId, eventId, userId) => {
     .digest('hex')
     .substring(0, 16);
 };
+
+// Exchange ticket for a different ticket type
+export const exchangeTicketType = async (ticketId, newTicketTypeId, newPrice) => {
+  try {
+    const query = {
+      text: `
+        UPDATE tickets
+        SET 
+          ticket_type_id = $2,
+          price = $3,
+          exchange_timestamp = NOW() 
+        WHERE id = $1
+        RETURNING *
+      `,
+      values: [ticketId, newTicketTypeId, newPrice]
+    };
+    
+    const result = await db.query(query);
+    return result.rows[0];
+  } catch (error) {
+    console.error('Error exchanging ticket type:', error);
+    throw error;
+  }
+};
