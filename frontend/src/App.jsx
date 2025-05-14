@@ -27,6 +27,7 @@ import CreditHistory from "./pages/CreditHistory";
 import TicketPage from "./pages/TicketPage";
 import PurchasePage from "./pages/PurchasePage";
 import PurchaseHistoryPage from "./pages/PurchaseHistoryPage";
+import PaymentMethods from "./pages/PaymentMethods";
 
 import { AuthProvider } from "./context/AuthContext";
 import AdminRoutes from "./routes/AdminRoutes";
@@ -111,6 +112,14 @@ function App() {
                         element={<TicketPage />}
                       />
                     </Route>
+                    <Route
+                      path="/profile/payment-methods"
+                      element={<PaymentMethods />}
+                    />
+                    <Route
+                      path="/profile/payment"
+                      element={<PaymentMethods />}
+                    />
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

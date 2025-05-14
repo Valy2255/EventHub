@@ -476,7 +476,6 @@ export const createEvent = async (req, res, next) => {
 };
 
 // Update event (admin)
-// Add this to the updateEvent function in adminController.js to handle null values better
 export const updateEvent = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -484,6 +483,20 @@ export const updateEvent = async (req, res, next) => {
     
     console.log('Updating event with ID:', id);
     console.log('Event data received:', eventData);
+    
+    // First, get the current event to check its status
+    const currentEventQuery = {
+      text: 'SELECT * FROM events WHERE id = $1',
+      values: [id]
+    };
+    
+    const currentEventResult = await db.query(currentEventQuery);
+    
+    if (currentEventResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+    
+    const currentEvent = currentEventResult.rows[0];
     
     // Check if event exists using direct query
     const checkQuery = {
@@ -501,13 +514,18 @@ export const updateEvent = async (req, res, next) => {
     const allowedFields = [
       'name', 'slug', 'description', 'date', 'time', 'end_time', 'venue', 'address', 'city', 
       'image_url', 'category_id', 'subcategory_id', 'organizer_id', 
-      'min_price', 'max_price', 'status', 'cancellation_policy', 'featured'
+      'min_price', 'max_price', 'status', 'cancellation_policy', 'featured',
+      'status_change_reason' // Add status_change_reason to allowed fields
     ];
     
     // Construct the update query with only allowed fields
     const updates = [];
     const values = [];
     let paramIndex = 1;
+    
+    // Track if we're updating the status_change_reason
+    let isUpdatingReason = false;
+    let isChangingStatus = false;
     
     // Process each field, ensuring the correct data type
     Object.keys(eventData).forEach((key) => {
@@ -516,6 +534,16 @@ export const updateEvent = async (req, res, next) => {
         
         // Skip undefined values
         if (value === undefined) return;
+        
+        // Track if we're updating status_change_reason
+        if (key === 'status_change_reason' && value !== currentEvent.status_change_reason) {
+          isUpdatingReason = true;
+        }
+        
+        // Track if we're changing status
+        if (key === 'status' && value !== currentEvent.status) {
+          isChangingStatus = true;
+        }
         
         // Handle numeric fields - nullify empty strings
         if (['category_id', 'subcategory_id', 'organizer_id', 'min_price', 'max_price'].includes(key)) {
@@ -542,11 +570,37 @@ export const updateEvent = async (req, res, next) => {
       }
     });
     
+    // Special case: If we're updating the status to 'rescheduled' for the first time
+    if (eventData.status === 'rescheduled' && currentEvent.status !== 'rescheduled') {
+      // Store original date/time if not already set
+      if (!currentEvent.original_date) {
+        updates.push(`original_date = $${paramIndex}`);
+        values.push(currentEvent.date);
+        paramIndex++;
+      }
+      
+      if (!currentEvent.original_time) {
+        updates.push(`original_time = $${paramIndex}`);
+        values.push(currentEvent.time);
+        paramIndex++;
+      }
+    }
+    
+    // Set notification_status to 'pending' if:
+    // 1. Status is changing to canceled or rescheduled
+    // 2. We're updating the reason for an already canceled or rescheduled event
+    if ((isChangingStatus && ['canceled', 'rescheduled'].includes(eventData.status)) ||
+        (isUpdatingReason && ['canceled', 'rescheduled'].includes(currentEvent.status))) {
+      updates.push(`notification_status = 'pending'`);
+      updates.push(`status_changed_at = CURRENT_TIMESTAMP`);
+      console.log('Setting notification status to pending for re-notification');
+    }
+    
     // If there are no fields to update, return early
     if (updates.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No valid fields to update' 
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update'
       });
     }
     
@@ -572,15 +626,16 @@ export const updateEvent = async (req, res, next) => {
     const result = await db.query(updateQuery);
     
     if (result.rows.length === 0) {
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to update event' 
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to update event'
       });
     }
     
     const updatedEvent = result.rows[0];
     
     console.log('Event updated successfully:', updatedEvent.id);
+    console.log('Notification status:', updatedEvent.notification_status);
     
     res.status(200).json({
       success: true,

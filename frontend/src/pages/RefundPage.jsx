@@ -169,12 +169,7 @@ export default function RefundsExchangesPage() {
             </p>
           </div>
           
-          <div>
-            <h3 className="font-semibold mb-2">What is your policy on transferring tickets to another person?</h3>
-            <p className="text-gray-700">
-              Tickets can be transferred to another person up to 24 hours before the event. Please contact support to process ticket transfers.
-            </p>
-          </div>
+          
         </div>
       </div>
       
@@ -201,13 +196,7 @@ export default function RefundsExchangesPage() {
         </div>
       </div>
       
-      {/* Full Policy Link */}
-      <div className="text-center mt-10">
-        <Link to="/terms/refund-policy" className="inline-flex items-center text-purple-600 hover:text-purple-800">
-          <FaFileAlt className="mr-2" />
-          View our complete Refund & Exchange Policy
-        </Link>
-      </div>
+      
     </div>
   );
 }

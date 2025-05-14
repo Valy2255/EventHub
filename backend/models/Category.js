@@ -87,8 +87,10 @@ export const getEvents = async (categoryId) => {
 export const getFeaturedEvents = async (categoryId) => {
   const query = {
     text: `
-      SELECT * FROM events
-      WHERE category_id = $1 AND status = 'active'
+      SELECT *, 
+             CASE WHEN status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
+      FROM events
+      WHERE category_id = $1 AND status IN ('active', 'rescheduled')
       ORDER BY views DESC
       LIMIT 2
     `,
@@ -103,27 +105,40 @@ export const getEventsPaginated = async (categoryId, limit, offset) => {
   // Query to fetch events with pagination
   const eventsQuery = {
     text: `
-      SELECT * FROM events
-      WHERE category_id = $1 AND status = 'active'
+      SELECT *, 
+             CASE WHEN status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
+      FROM events
+      WHERE category_id = $1 
+      AND status IN ('active', 'rescheduled')
       ORDER BY date ASC
       LIMIT $2 OFFSET $3
     `,
     values: [categoryId, limit, offset]
   };
-  const resultEvents = await db.query(eventsQuery);
-
-  // Query to count total events
+  
+  // Query to count total events - THIS IS THE KEY PART THAT NEEDS TO BE FIXED
   const countQuery = {
     text: `
       SELECT COUNT(*) AS total FROM events
       WHERE category_id = $1
+      AND status IN ('active', 'rescheduled')
     `,
     values: [categoryId]
   };
-  const resultCount = await db.query(countQuery);
+  
+  // Execute both queries
+  const [resultEvents, resultCount] = await Promise.all([
+    db.query(eventsQuery),
+    db.query(countQuery)
+  ]);
+  
   const totalCount = parseInt(resultCount.rows[0].total, 10);
-
-  return { events: resultEvents.rows, totalCount };
+  
+  return { 
+    events: resultEvents.rows, 
+    totalCount, 
+    totalPages: Math.ceil(totalCount / limit)
+  };
 };
 
 // Get all categories with event counts
@@ -132,7 +147,7 @@ export const getAllWithEventCounts = async () => {
     text: `
       SELECT c.*, COUNT(e.id) as event_count
       FROM categories c
-      LEFT JOIN events e ON c.id = e.category_id AND e.status = 'active'
+      LEFT JOIN events e ON c.id = e.category_id AND e.status IN ('active', 'rescheduled')
       GROUP BY c.id
       ORDER BY c.name
     `
@@ -148,7 +163,7 @@ export const getTotalEventsCount = async () => {
     text: `
       SELECT COUNT(*) as total_events
       FROM events 
-      WHERE status = 'active'
+      WHERE status IN ('active', 'rescheduled')
     `
   };
   
@@ -163,11 +178,13 @@ export const getUpcomingEvents = async (limit = 6) => {
   const query = {
     text: `
       SELECT e.*, c.name as category_name, c.slug as category_slug,
-             s.name as subcategory_name, s.slug as subcategory_slug
+             s.name as subcategory_name, s.slug as subcategory_slug,
+             CASE WHEN e.status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
       FROM events e
       LEFT JOIN categories c ON e.category_id = c.id
       LEFT JOIN subcategories s ON e.subcategory_id = s.id
-      WHERE e.date >= CURRENT_DATE AND e.status = 'active'
+      WHERE e.date >= CURRENT_DATE 
+      AND e.status IN ('active', 'rescheduled')
       ORDER BY e.date ASC, e.time ASC
       LIMIT $1
     `,

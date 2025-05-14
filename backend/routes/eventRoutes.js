@@ -11,6 +11,10 @@ const router = express.Router();
 router.get('/:id', asyncHandler(eventController.getEventById));
 router.post('/:id/view', asyncHandler(eventController.incrementViewCount));
 
+// Event status change routes - protect with auth
+router.put('/:id/cancel', auth, asyncHandler(eventController.cancelEvent));
+router.put('/:id/reschedule', auth, asyncHandler(eventController.rescheduleEvent));
+
 // Review routes
 router.get('/:id/reviews', asyncHandler(reviewController.getEventReviews));
 router.post('/:id/reviews', auth, asyncHandler(reviewController.createReview));

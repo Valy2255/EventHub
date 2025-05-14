@@ -13,6 +13,7 @@ import {
   FaRegCreditCard,
   FaRegCalendarAlt,
   FaCoins,
+  FaPlus,
 } from "react-icons/fa";
 import { useAuth } from "../hooks/useAuth";
 import api from "../services/api";
@@ -38,6 +39,10 @@ const Checkout = () => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [savedCards, setSavedCards] = useState([]);
+  const [loadingCards, setLoadingCards] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState(null);
+  const [saveNewCard, setSaveNewCard] = useState(false);
 
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
@@ -158,78 +163,105 @@ const Checkout = () => {
     }
   }, [paymentSuccess]);
 
+  // Load saved cards when payment method is 'card'
   useEffect(() => {
-  const loadCheckoutData = async () => {
-    // Skip loading if payment has already been completed
-    if (paymentCompleted) {
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      
-      if (!user) {
-        navigate("/login", { state: { from: "/checkout" } });
-        return;
-      }
-      
-      const storedTickets = sessionStorage.getItem("checkoutTickets");
-      const eventId = sessionStorage.getItem("eventId");
-      
-      console.log('Checking session storage:', { 
-        hasStoredTickets: Boolean(storedTickets), 
-        hasEventId: Boolean(eventId) 
-      });
-      
-      // Only show the error if we're not already in the confirmation step
-      if ((!storedTickets || !eventId) && step !== 3) {
-        setError(
-          "No tickets selected. Please go back to the event page and select tickets."
-        );
-        setLoading(false);
-        return;
-      }
-      
-      // Skip the rest if we don't have ticket data and are in confirmation step
-      if ((!storedTickets || !eventId) && step === 3) {
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        const ticketData = JSON.parse(storedTickets).map((ticket) => ({
-          ...ticket,
-          price: Number(ticket.price),
-        }));
-        setTickets(ticketData);
-        
-        const total = ticketData.reduce((sum, ticket) => {
-          return sum + ticket.price * ticket.quantity;
-        }, 0);
-        setTotalAmount(total);
-        
-        const response = await api.get(`/events/${eventId}`);
-        setEvent(response.data.event);
-      } catch (parseError) {
-        console.error('Error processing ticket data:', parseError);
-        // Only show error if not in confirmation step
-        if (step !== 3) {
-          setError("Error processing ticket data. Please try again.");
+    const loadSavedCards = async () => {
+      if (paymentMethod === "card") {
+        try {
+          setLoadingCards(true);
+          const response = await api.get("/payment-methods");
+          setSavedCards(response.data.paymentMethods);
+
+          // If there's a default card, select it
+          const defaultCard = response.data.paymentMethods.find(
+            (card) => card.is_default
+          );
+          if (defaultCard) {
+            setSelectedCardId(defaultCard.id);
+          }
+        } catch (err) {
+          console.error("Error loading saved cards:", err);
+        } finally {
+          setLoadingCards(false);
         }
       }
-    } catch (err) {
-      console.error("Error loading checkout data:", err);
-      // Only show error if not in confirmation step
-      if (step !== 3) {
-        setError("Error loading checkout data. Please try again.");
+    };
+
+    loadSavedCards();
+  }, [paymentMethod]);
+
+  useEffect(() => {
+    const loadCheckoutData = async () => {
+      // Skip loading if payment has already been completed
+      if (paymentCompleted) {
+        return;
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  loadCheckoutData();
-}, [user, navigate, paymentCompleted, step]);
+
+      try {
+        setLoading(true);
+
+        if (!user) {
+          navigate("/login", { state: { from: "/checkout" } });
+          return;
+        }
+
+        const storedTickets = sessionStorage.getItem("checkoutTickets");
+        const eventId = sessionStorage.getItem("eventId");
+
+        console.log("Checking session storage:", {
+          hasStoredTickets: Boolean(storedTickets),
+          hasEventId: Boolean(eventId),
+        });
+
+        // Only show the error if we're not already in the confirmation step
+        if ((!storedTickets || !eventId) && step !== 3) {
+          setError(
+            "No tickets selected. Please go back to the event page and select tickets."
+          );
+          setLoading(false);
+          return;
+        }
+
+        // Skip the rest if we don't have ticket data and are in confirmation step
+        if ((!storedTickets || !eventId) && step === 3) {
+          setLoading(false);
+          return;
+        }
+
+        try {
+          const ticketData = JSON.parse(storedTickets).map((ticket) => ({
+            ...ticket,
+            price: Number(ticket.price),
+          }));
+          setTickets(ticketData);
+
+          const total = ticketData.reduce((sum, ticket) => {
+            return sum + ticket.price * ticket.quantity;
+          }, 0);
+          setTotalAmount(total);
+
+          const response = await api.get(`/events/${eventId}`);
+          setEvent(response.data.event);
+        } catch (parseError) {
+          console.error("Error processing ticket data:", parseError);
+          // Only show error if not in confirmation step
+          if (step !== 3) {
+            setError("Error processing ticket data. Please try again.");
+          }
+        }
+      } catch (err) {
+        console.error("Error loading checkout data:", err);
+        // Only show error if not in confirmation step
+        if (step !== 3) {
+          setError("Error loading checkout data. Please try again.");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCheckoutData();
+  }, [user, navigate, paymentCompleted, step]);
 
   // Also, add this useEffect to load user credits separately
   useEffect(() => {
@@ -323,98 +355,132 @@ const Checkout = () => {
   // Improved handlePaymentSubmit function for Checkout.jsx
 
   const handlePaymentSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const formErrors = validatePaymentForm();
-  if (Object.keys(formErrors).length > 0) {
-    setPaymentErrors(formErrors);
-    return;
-  }
+    let formErrors = {};
 
-  setPaymentErrors({});
-  setSubmitting(true);
-
-  try {
-    // Payment request code...
-    const paymentResponse = await api.post("/payments", {
-      amount: totalAmount,
-      paymentMethod,
-      currency: "USD",
-      useCredits: paymentMethod === "credits",
-      tickets: tickets.map((ticket) => ({
-        ticketTypeId: ticket.ticketTypeId,
-        quantity: ticket.quantity,
-        price: ticket.price,
-        eventId: event.id,
-      })),
-    });
-
-    console.log('Payment successful:', paymentResponse.data);
-
-    // If payment was made with credits, update the local state
-    if (paymentMethod === "credits" && paymentResponse.data.currentCredits !== undefined) {
-      setUserCredits(paymentResponse.data.currentCredits);
-      // Update the user object in auth context
-      setUser({
-        ...user,
-        credits: paymentResponse.data.currentCredits
-      });
+    // For a saved card, we only validate if a card is selected
+    if (paymentMethod === "card" && selectedCardId === null) {
+      formErrors = validatePaymentForm();
+    } else if (paymentMethod === "credits") {
+      if (userCredits < totalAmount) {
+        formErrors.general = `Insufficient credits. You need ${totalAmount.toFixed(
+          2
+        )} credits but have ${userCredits.toFixed(2)}.`;
+      }
     }
 
-    // Set these state variables BEFORE clearing session storage
-    setOrderNumber(paymentResponse.data.orderNumber || "ORD-" + Date.now());
-    setPaymentSuccess(true);
-    setPaymentCompleted(true); // Mark payment as completed
-    setStep(3);
+    if (Object.keys(formErrors).length > 0) {
+      setPaymentErrors(formErrors);
+      return;
+    }
 
-    // Now it's safe to clear the session storage
-    sessionStorage.removeItem("checkoutTickets");
-    sessionStorage.removeItem("eventId");
-  } catch (err) {
-    console.error("Payment error:", err);
-  } finally {
-    setSubmitting(false);
-  }
-};
+    setPaymentErrors({});
+    setSubmitting(true);
 
-// 4. Update renderContent to handle the payment completed state
-const renderContent = () => {
-  // If payment is completed and we're on step 3, always show confirmation
-  if (paymentCompleted && step === 3) {
-    return renderConfirmation();
-  }
-  
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <FaSpinner className="animate-spin text-purple-600 text-4xl" />
-      </div>
-    );
-  }
+    try {
+      // Prepare payment data
+      const paymentData = {
+        amount: totalAmount,
+        paymentMethod,
+        currency: "USD",
+        useCredits: paymentMethod === "credits",
+        tickets: tickets.map((ticket) => ({
+          ticketTypeId: ticket.ticketTypeId,
+          quantity: ticket.quantity,
+          price: ticket.price,
+          eventId: event.id,
+        })),
+      };
 
-  // Only show error if we're not already in confirmation step
-  if (error && step !== 3) {
-    return (
-      <div className="bg-red-100 text-red-700 p-4 rounded-md">
-        <p>{error}</p>
-        <Link
-          to="/"
-          className="text-purple-600 font-medium mt-4 inline-block"
-        >
-          Back to Home
-        </Link>
-      </div>
-    );
-  }
+      // If using a saved card, add the card ID
+      if (paymentMethod === "card" && selectedCardId) {
+        paymentData.savedCardId = selectedCardId;
+      }
+      // If using a new card and want to save it
+      else if (paymentMethod === "card" && saveNewCard) {
+        paymentData.saveCard = true;
+        paymentData.cardDetails = {
+          cardNumber: cardNumber.replace(/\D/g, ""),
+          cardHolderName: cardName,
+          expiryDate,
+          isDefault: false,
+        };
+      }
 
-  if (step === 1) {
-    return renderOrderReview();
-  } else if (step === 2) {
-    return renderPaymentForm();
-  } else if (step === 3) {
-    return renderConfirmation();
-  }
-};
+      const paymentResponse = await api.post("/payments", paymentData);
+
+      console.log("Payment successful:", paymentResponse.data);
+
+      // If payment was made with credits, update the local state
+      if (
+        paymentMethod === "credits" &&
+        paymentResponse.data.currentCredits !== undefined
+      ) {
+        setUserCredits(paymentResponse.data.currentCredits);
+        setUser({
+          ...user,
+          credits: paymentResponse.data.currentCredits,
+        });
+      }
+
+      setOrderNumber(paymentResponse.data.orderNumber || "ORD-" + Date.now());
+      setPaymentSuccess(true);
+      setPaymentCompleted(true);
+      setStep(3);
+
+      sessionStorage.removeItem("checkoutTickets");
+      sessionStorage.removeItem("eventId");
+    } catch (err) {
+      console.error("Payment error:", err);
+      setPaymentErrors({
+        general:
+          err.response?.data?.error ||
+          "Payment processing failed. Please try again.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 4. Update renderContent to handle the payment completed state
+  const renderContent = () => {
+    // If payment is completed and we're on step 3, always show confirmation
+    if (paymentCompleted && step === 3) {
+      return renderConfirmation();
+    }
+
+    if (loading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <FaSpinner className="animate-spin text-purple-600 text-4xl" />
+        </div>
+      );
+    }
+
+    // Only show error if we're not already in confirmation step
+    if (error && step !== 3) {
+      return (
+        <div className="bg-red-100 text-red-700 p-4 rounded-md">
+          <p>{error}</p>
+          <Link
+            to="/"
+            className="text-purple-600 font-medium mt-4 inline-block"
+          >
+            Back to Home
+          </Link>
+        </div>
+      );
+    }
+
+    if (step === 1) {
+      return renderOrderReview();
+    } else if (step === 2) {
+      return renderPaymentForm();
+    } else if (step === 3) {
+      return renderConfirmation();
+    }
+  };
 
   const renderOrderReview = () => {
     return (
@@ -511,271 +577,395 @@ const renderContent = () => {
 
   // Render payment form step
   const renderPaymentForm = () => {
-    return (
-      <div>
-        <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
+  // Handle selecting a saved card
+  const handleSelectCard = (id) => {
+    setSelectedCardId(id);
+    // Clear any card-related errors
+    setPaymentErrors({
+      ...paymentErrors,
+      cardNumber: '',
+      cardName: '',
+      expiryDate: '',
+      cvv: ''
+    });
+  };
 
-        {/* Error message */}
-        {paymentErrors.general && (
-          <div className="bg-red-100 text-red-700 p-4 rounded-md mb-6">
-            {paymentErrors.general}
-          </div>
-        )}
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-6">Payment Method</h2>
 
-        {/* Payment form */}
-        <form onSubmit={handlePaymentSubmit}>
-          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-            {/* Payment method options */}
-            <div className="mb-6">
-              <h3 className="text-lg font-bold mb-3">Select Payment Method</h3>
-              <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4">
-                <label
-                  className={`flex items-center border rounded-md p-4 cursor-pointer ${
+      {/* Error message */}
+      {paymentErrors.general && (
+        <div className="bg-red-100 text-red-700 p-4 rounded-md mb-6">
+          {paymentErrors.general}
+        </div>
+      )}
+
+      {/* Payment form */}
+      <form onSubmit={handlePaymentSubmit}>
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          {/* Payment method options */}
+          <div className="mb-6">
+            <h3 className="text-lg font-bold mb-3">Select Payment Method</h3>
+            <div className="flex flex-col space-y-3 md:flex-row md:space-y-0 md:space-x-4">
+              <label
+                className={`flex items-center border rounded-md p-4 cursor-pointer ${
+                  paymentMethod === "card"
+                    ? "border-purple-600 bg-purple-50"
+                    : "border-gray-300"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="card"
+                  checked={paymentMethod === "card"}
+                  onChange={() => setPaymentMethod("card")}
+                  className="sr-only"
+                />
+                <FaCreditCard
+                  className={`mr-2 ${
                     paymentMethod === "card"
-                      ? "border-purple-600 bg-purple-50"
-                      : "border-gray-300"
+                      ? "text-purple-600"
+                      : "text-gray-400"
                   }`}
+                />
+                <span
+                  className={
+                    paymentMethod === "card"
+                      ? "text-purple-600 font-medium"
+                      : "text-gray-600"
+                  }
                 >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="card"
-                    checked={paymentMethod === "card"}
-                    onChange={() => setPaymentMethod("card")}
-                    className="sr-only"
-                  />
-                  <FaCreditCard
-                    className={`mr-2 ${
-                      paymentMethod === "card"
-                        ? "text-purple-600"
-                        : "text-gray-400"
-                    }`}
-                  />
+                  Credit/Debit Card
+                </span>
+              </label>
+
+              <label
+                className={`flex items-center border rounded-md p-4 ${
+                  paymentMethod === "credits"
+                    ? "border-purple-600 bg-purple-50"
+                    : "border-gray-300"
+                } ${
+                  totalAmount > userCredits
+                    ? "cursor-not-allowed opacity-70"
+                    : "cursor-pointer"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value="credits"
+                  checked={paymentMethod === "credits"}
+                  onChange={() =>
+                    totalAmount <= userCredits && setPaymentMethod("credits")
+                  }
+                  disabled={totalAmount > userCredits}
+                  className="sr-only"
+                />
+                <FaCoins
+                  className={`mr-2 ${
+                    paymentMethod === "credits"
+                      ? "text-purple-600"
+                      : "text-gray-400"
+                  }`}
+                />
+                <div className="flex flex-col">
                   <span
                     className={
-                      paymentMethod === "card"
+                      paymentMethod === "credits"
                         ? "text-purple-600 font-medium"
                         : "text-gray-600"
                     }
                   >
-                    Credit/Debit Card
+                    Pay with Credits
                   </span>
-                </label>
+                  <span className="text-xs text-gray-500">
+                    {loadingCredits ? (
+                      <FaSpinner className="animate-spin inline-block mr-1" />
+                    ) : (
+                      `Balance: ${parseFloat(userCredits).toFixed(2)} credits`
+                    )}
+                  </span>
 
-                <label
-                  className={`flex items-center border rounded-md p-4 ${
-                    paymentMethod === "credits"
-                      ? "border-purple-600 bg-purple-50"
-                      : "border-gray-300"
-                  } ${
-                    totalAmount > userCredits
-                      ? "cursor-not-allowed opacity-70"
-                      : "cursor-pointer"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="credits"
-                    checked={paymentMethod === "credits"}
-                    onChange={() =>
-                      totalAmount <= userCredits && setPaymentMethod("credits")
-                    }
-                    disabled={totalAmount > userCredits}
-                    className="sr-only"
-                  />
-                  <FaCoins
-                    className={`mr-2 ${
-                      paymentMethod === "credits"
-                        ? "text-purple-600"
-                        : "text-gray-400"
-                    }`}
-                  />
-                  <div className="flex flex-col">
-                    <span
-                      className={
-                        paymentMethod === "credits"
-                          ? "text-purple-600 font-medium"
-                          : "text-gray-600"
-                      }
-                    >
-                      Pay with Credits
+                  {totalAmount > userCredits && (
+                    <span className="text-xs text-red-500 mt-1">
+                      Insufficient credits. Need{" "}
+                      {(totalAmount - userCredits).toFixed(2)} more.
                     </span>
-                    <span className="text-xs text-gray-500">
-                      {loadingCredits ? (
-                        <FaSpinner className="animate-spin inline-block mr-1" />
-                      ) : (
-                        `Balance: ${parseFloat(userCredits).toFixed(2)} credits`
-                      )}
-                    </span>
+                  )}
+                </div>
+              </label>
+            </div>
+          </div>
 
-                    {totalAmount > userCredits && (
-                      <span className="text-xs text-red-500 mt-1">
-                        Insufficient credits. Need{" "}
-                        {(totalAmount - userCredits).toFixed(2)} more.
-                      </span>
+          {/* Card details (only shown if card payment is selected) */}
+          {paymentMethod === "card" && (
+            <div>
+              {/* Saved cards section */}
+              {savedCards.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-medium mb-3">Your Saved Cards</h4>
+                  
+                  {loadingCards ? (
+                    <div className="flex justify-center py-4">
+                      <FaSpinner className="animate-spin text-purple-600" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {savedCards.map(card => (
+                        <label 
+                          key={card.id} 
+                          className={`flex items-center border rounded-md p-3 cursor-pointer ${
+                            selectedCardId === card.id 
+                              ? 'border-purple-600 bg-purple-50' 
+                              : 'border-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="savedCard"
+                            checked={selectedCardId === card.id}
+                            onChange={() => handleSelectCard(card.id)}
+                            className="sr-only"
+                          />
+                          
+                          <div className="flex-1 flex items-center">
+                            <FaCreditCard 
+                              className={`mr-3 ${selectedCardId === card.id ? 'text-purple-600' : 'text-gray-400'}`} 
+                            />
+                            <div>
+                              <div className="font-medium">
+                                {card.card_type} •••• {card.last_four}
+                                {card.is_default && (
+                                  <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {card.card_holder_name} • Expires {card.expiry_month}/{card.expiry_year}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                            selectedCardId === card.id ? 'border-purple-600' : 'border-gray-300'
+                          }`}>
+                            {selectedCardId === card.id && (
+                              <div className="w-3 h-3 rounded-full bg-purple-600" />
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                      
+                      <label 
+                        className={`flex items-center border rounded-md p-3 cursor-pointer ${
+                          selectedCardId === null 
+                            ? 'border-purple-600 bg-purple-50' 
+                            : 'border-gray-300'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="savedCard"
+                          checked={selectedCardId === null}
+                          onChange={() => setSelectedCardId(null)}
+                          className="sr-only"
+                        />
+                        
+                        <div className="flex-1 flex items-center">
+                          <FaPlus 
+                            className={`mr-3 ${selectedCardId === null ? 'text-purple-600' : 'text-gray-400'}`} 
+                          />
+                          <div className="font-medium">
+                            Use a new card
+                          </div>
+                        </div>
+                        
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          selectedCardId === null ? 'border-purple-600' : 'border-gray-300'
+                        }`}>
+                          {selectedCardId === null && (
+                            <div className="w-3 h-3 rounded-full bg-purple-600" />
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* New card form (only if no saved card is selected) */}
+              {selectedCardId === null && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-2">
+                      Card Number
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={cardNumber}
+                        onChange={handleCardNumberChange}
+                        placeholder="1234 5678 9012 3456"
+                        className={`w-full p-3 pl-10 border rounded-md ${
+                          paymentErrors.cardNumber
+                            ? "border-red-500"
+                            : "border-gray-300"
+                        }`}
+                        maxLength="19"
+                      />
+                      <FaRegCreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    </div>
+                    {paymentErrors.cardNumber && (
+                      <p className="text-red-500 text-sm mt-1">
+                        {paymentErrors.cardNumber}
+                      </p>
                     )}
                   </div>
-                </label>
-              </div>
-            </div>
 
-            {/* Card details (only shown if card payment is selected) */}
-            {paymentMethod === "card" && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    Card Number
-                  </label>
-                  <div className="relative">
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-2">
+                      Cardholder Name
+                    </label>
                     <input
                       type="text"
-                      value={cardNumber}
-                      onChange={handleCardNumberChange}
-                      placeholder="1234 5678 9012 3456"
-                      className={`w-full p-3 pl-10 border rounded-md ${
-                        paymentErrors.cardNumber
+                      value={cardName}
+                      onChange={(e) => setCardName(e.target.value)}
+                      placeholder="John Smith"
+                      className={`w-full p-3 border rounded-md ${
+                        paymentErrors.cardName
                           ? "border-red-500"
                           : "border-gray-300"
                       }`}
-                      maxLength="19"
                     />
-                    <FaRegCreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  </div>
-                  {paymentErrors.cardNumber && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {paymentErrors.cardNumber}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    Cardholder Name
-                  </label>
-                  <input
-                    type="text"
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value)}
-                    placeholder="John Smith"
-                    className={`w-full p-3 border rounded-md ${
-                      paymentErrors.cardName
-                        ? "border-red-500"
-                        : "border-gray-300"
-                    }`}
-                  />
-                  {paymentErrors.cardName && (
-                    <p className="text-red-500 text-sm mt-1">
-                      {paymentErrors.cardName}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex space-x-4">
-                  <div className="w-1/2">
-                    <label className="block text-gray-700 font-medium mb-2">
-                      Expiry Date
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={expiryDate}
-                        onChange={handleExpiryDateChange}
-                        placeholder="MM/YY"
-                        className={`w-full p-3 pl-10 border rounded-md ${
-                          paymentErrors.expiryDate
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}
-                        maxLength="5"
-                      />
-                      <FaRegCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                    </div>
-                    {paymentErrors.expiryDate && (
+                    {paymentErrors.cardName && (
                       <p className="text-red-500 text-sm mt-1">
-                        {paymentErrors.expiryDate}
+                        {paymentErrors.cardName}
                       </p>
                     )}
                   </div>
 
-                  <div className="w-1/2">
-                    <label className="block text-gray-700 font-medium mb-2">
-                      CVV
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={cvv}
-                        onChange={(e) =>
-                          setCvv(e.target.value.replace(/\D/g, ""))
-                        }
-                        placeholder="123"
-                        className={`w-full p-3 pl-10 border rounded-md ${
-                          paymentErrors.cvv
-                            ? "border-red-500"
-                            : "border-gray-300"
-                        }`}
-                        maxLength="4"
-                      />
-                      <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <div className="flex space-x-4">
+                    <div className="w-1/2">
+                      <label className="block text-gray-700 font-medium mb-2">
+                        Expiry Date
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={expiryDate}
+                          onChange={handleExpiryDateChange}
+                          placeholder="MM/YY"
+                          className={`w-full p-3 pl-10 border rounded-md ${
+                            paymentErrors.expiryDate
+                              ? "border-red-500"
+                              : "border-gray-300"
+                          }`}
+                          maxLength="5"
+                        />
+                        <FaRegCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      </div>
+                      {paymentErrors.expiryDate && (
+                        <p className="text-red-500 text-sm mt-1">
+                          {paymentErrors.expiryDate}
+                        </p>
+                      )}
                     </div>
-                    {paymentErrors.cvv && (
-                      <p className="text-red-500 text-sm mt-1">
-                        {paymentErrors.cvv}
-                      </p>
-                    )}
+
+                    <div className="w-1/2">
+                      <label className="block text-gray-700 font-medium mb-2">
+                        CVV
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="password"
+                          value={cvv}
+                          onChange={(e) =>
+                            setCvv(e.target.value.replace(/\D/g, ""))
+                          }
+                          placeholder="123"
+                          className={`w-full p-3 pl-10 border rounded-md ${
+                            paymentErrors.cvv
+                              ? "border-red-500"
+                              : "border-gray-300"
+                          }`}
+                          maxLength="4"
+                        />
+                        <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      </div>
+                      {paymentErrors.cvv && (
+                        <p className="text-red-500 text-sm mt-1">
+                          {paymentErrors.cvv}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Save card option */}
+                  <div>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={saveNewCard}
+                        onChange={(e) => setSaveNewCard(e.target.checked)}
+                        className="mr-2"
+                      />
+                      <span>Save this card for future payments</span>
+                    </label>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Order summary for this step */}
-          <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h3 className="text-lg font-bold mb-4">Order Summary</h3>
-            <div className="flex justify-between text-lg mb-2">
-              <span>Total Amount:</span>
-              <span className="font-bold">${totalAmount.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Navigation buttons */}
-          <div className="flex justify-between">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="text-purple-600 font-medium flex items-center"
-            >
-              <FaArrowLeft className="mr-2" /> Back to Review
-            </button>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-md flex items-center ${
-                submitting ? "opacity-70 cursor-not-allowed" : ""
-              }`}
-            >
-              {submitting ? (
-                <>
-                  <FaSpinner className="animate-spin mr-2" /> Processing...
-                </>
-              ) : (
-                <>
-                  <FaLock className="mr-2" /> Complete Payment
-                </>
               )}
-            </button>
-          </div>
+            </div>
+          )}
+        </div>
 
-          <div className="mt-4 text-center text-sm text-gray-500">
-            <FaLock className="inline mr-1" /> Your payment information is
-            secure and encrypted
+        {/* Order summary and buttons - unchanged */}
+        <div className="bg-white p-6 rounded-lg shadow-md mb-6">
+          <h3 className="text-lg font-bold mb-4">Order Summary</h3>
+          <div className="flex justify-between text-lg mb-2">
+            <span>Total Amount:</span>
+            <span className="font-bold">${totalAmount.toFixed(2)}</span>
           </div>
-        </form>
-      </div>
-    );
-  };
+        </div>
+
+        <div className="flex justify-between">
+          <button
+            type="button"
+            onClick={() => setStep(1)}
+            className="text-purple-600 font-medium flex items-center"
+          >
+            <FaArrowLeft className="mr-2" /> Back to Review
+          </button>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className={`bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-md flex items-center ${
+              submitting ? "opacity-70 cursor-not-allowed" : ""
+            }`}
+          >
+            {submitting ? (
+              <>
+                <FaSpinner className="animate-spin mr-2" /> Processing...
+              </>
+            ) : (
+              <>
+                <FaLock className="mr-2" /> Complete Payment
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="mt-4 text-center text-sm text-gray-500">
+          <FaLock className="inline mr-1" /> Your payment information is
+          secure and encrypted
+        </div>
+      </form>
+    </div>
+  );
+};
 
   // Render confirmation step
   const renderConfirmation = () => {

@@ -13,7 +13,8 @@ import {
   FaCheckCircle,
   FaBan,
   FaExclamationTriangle,
-  FaSync
+  FaSync,
+  FaClock
 } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
@@ -28,6 +29,16 @@ const AdminEvents = () => {
   const [sort, setSort] = useState('newest');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [eventToDelete, setEventToDelete] = useState(null);
+  
+  // Added state for cancel/reschedule functionality
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [eventToAction, setEventToAction] = useState(null);
+  const [actionReason, setActionReason] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventTime, setNewEventTime] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+  
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
     current: 1,
@@ -70,11 +81,11 @@ const AdminEvents = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, sort, status, search]); // Added fetchEvents dependencies
+  }, [page, sort, status, search]);
 
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]); // Now fetchEvents is properly included as a dependency
+  }, [fetchEvents]);
 
   const handleDeleteClick = (event) => {
     setEventToDelete(event);
@@ -118,6 +129,115 @@ const AdminEvents = () => {
       setEventToDelete(null);
     }
   };
+  
+  // Handler for cancel button click
+  const handleCancelClick = (event) => {
+    setEventToAction(event);
+    setActionReason('');
+    setShowCancelModal(true);
+  };
+
+  // Handler for reschedule button click
+  const handleRescheduleClick = (event) => {
+    setEventToAction(event);
+    setActionReason('');
+    
+    // Format date for input (YYYY-MM-DD)
+    const formattedDate = event.date 
+      ? new Date(event.date).toISOString().split('T')[0]
+      : '';
+      
+    setNewEventDate(formattedDate);
+    setNewEventTime(event.time || '');
+    setShowRescheduleModal(true);
+  };
+
+  // Handler for confirm cancel
+  const handleConfirmCancel = async () => {
+    if (!eventToAction || !actionReason.trim()) return;
+    
+    try {
+      setActionLoading(true);
+      setError(null);
+      
+      const response = await api.put(`/events/${eventToAction.id}/cancel`, {
+        cancelReason: actionReason
+      });
+      
+      // Update the event in the list if successful
+      if (response.data.success) {
+        // Update the local events list
+        setEvents(events.map(event => 
+          event.id === eventToAction.id 
+            ? { ...event, status: 'canceled' } 
+            : event
+        ));
+        
+        // Show success message
+        setSuccess('Event has been canceled. Refunds will be processed automatically.');
+        
+        // Refresh the events list to get updated data
+        fetchEvents();
+      }
+    } catch (err) {
+      console.error('Error canceling event:', err);
+      setError(
+        err.response?.data?.error || 
+        'Failed to cancel event. Please try again.'
+      );
+    } finally {
+      setActionLoading(false);
+      setShowCancelModal(false);
+      setEventToAction(null);
+      setActionReason('');
+    }
+  };
+
+  // Handler for confirm reschedule
+  const handleConfirmReschedule = async () => {
+    if (!eventToAction || !actionReason.trim() || !newEventDate || !newEventTime) return;
+    
+    try {
+      setActionLoading(true);
+      setError(null);
+      
+      const response = await api.put(`/events/${eventToAction.id}/reschedule`, {
+        newDate: newEventDate,
+        newTime: newEventTime,
+        rescheduleReason: actionReason
+      });
+      
+      // Update the event in the list if successful
+      if (response.data.success) {
+        // Update the local events list
+        setEvents(events.map(event => 
+          event.id === eventToAction.id 
+            ? { ...event, status: 'rescheduled', date: newEventDate, time: newEventTime } 
+            : event
+        ));
+        
+        // Show success message
+        setSuccess('Event has been rescheduled. Attendees will be notified automatically.');
+        
+        // Refresh the events list to get updated data
+        fetchEvents();
+      }
+    } catch (err) {
+      console.error('Error rescheduling event:', err);
+      setError(
+        err.response?.data?.error || 
+        'Failed to reschedule event. Please try again.'
+      );
+    } finally {
+      setActionLoading(false);
+      setShowRescheduleModal(false);
+      setEventToAction(null);
+      setActionReason('');
+      setNewEventDate('');
+      setNewEventTime('');
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
   };
@@ -139,10 +259,14 @@ const AdminEvents = () => {
         return <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">Active</span>;
       case 'draft':
         return <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded-full">Draft</span>;
-      case 'cancelled':
-        return <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">Cancelled</span>;
+      case 'canceled':
+        return <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">Canceled</span>;
+      case 'rescheduled':
+        return <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">Rescheduled</span>;
       case 'completed':
         return <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">Completed</span>;
+      case 'inactive':
+        return <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded-full">Inactive</span>;
       default:
         return <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded-full">{status}</span>;
     }
@@ -211,8 +335,10 @@ const AdminEvents = () => {
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
               <option value="draft">Draft</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="canceled">Canceled</option>
+              <option value="rescheduled">Rescheduled</option>
               <option value="completed">Completed</option>
+              <option value="inactive">Inactive</option>
             </select>
           </div>
           
@@ -341,6 +467,24 @@ const AdminEvents = () => {
                       >
                         <FaEdit />
                       </Link>
+                      {event.status !== 'canceled' && (
+                        <button
+                          onClick={() => handleCancelClick(event)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Cancel Event"
+                        >
+                          <FaBan />
+                        </button>
+                      )}
+                      {event.status !== 'canceled' && event.status !== 'rescheduled' && (
+                        <button
+                          onClick={() => handleRescheduleClick(event)}
+                          className="text-yellow-600 hover:text-yellow-900"
+                          title="Reschedule Event"
+                        >
+                          <FaCalendarAlt />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteClick(event)}
                         className="text-red-600 hover:text-red-900"
@@ -415,6 +559,140 @@ const AdminEvents = () => {
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Event Modal */}
+      {showCancelModal && eventToAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Confirm Event Cancellation</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Are you sure you want to cancel <span className="font-medium">{eventToAction.name}</span>?
+              {(eventToAction.tickets_sold > 0) && (
+                <span className="block mt-2 text-red-600">
+                  This event has {eventToAction.tickets_sold} tickets sold. All tickets will be automatically refunded.
+                </span>
+              )}
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cancellation Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={actionReason}
+                onChange={(e) => setActionReason(e.target.value)}
+                className="w-full p-2 border rounded-md"
+                rows="3"
+                placeholder="Please provide a reason for cancellation (will be shared with attendees)"
+                required
+              ></textarea>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md text-sm font-medium"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={!actionReason.trim() || actionLoading}
+                className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium ${
+                  !actionReason.trim() || actionLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {actionLoading ? (
+                  <>
+                    <FaSpinner className="animate-spin inline mr-1" />
+                    Processing...
+                  </>
+                ) : (
+                  'Cancel Event'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule Event Modal */}
+      {showRescheduleModal && eventToAction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Reschedule Event</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Reschedule <span className="font-medium">{eventToAction.name}</span> to a new date and time:
+            </p>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  New Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={newEventDate}
+                  onChange={(e) => setNewEventDate(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  New Time <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="time"
+                  value={newEventTime}
+                  onChange={(e) => setNewEventTime(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Rescheduling Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={actionReason}
+                onChange={(e) => setActionReason(e.target.value)}
+                className="w-full p-2 border rounded-md"
+                rows="3"
+                placeholder="Please provide a reason for rescheduling (will be shared with attendees)"
+                required
+              ></textarea>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowRescheduleModal(false)}
+                className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-md text-sm font-medium"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleConfirmReschedule}
+                disabled={!actionReason.trim() || !newEventDate || !newEventTime || actionLoading}
+                className={`bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium ${
+                  !actionReason.trim() || !newEventDate || !newEventTime || actionLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {actionLoading ? (
+                  <>
+                    <FaSpinner className="animate-spin inline mr-1" />
+                    Processing...
+                  </>
+                ) : (
+                  'Reschedule Event'
+                )}
               </button>
             </div>
           </div>

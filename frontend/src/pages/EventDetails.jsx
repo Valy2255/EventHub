@@ -221,20 +221,47 @@ const EventDetails = () => {
                   {event.subcategory_name}
                 </div>
               )}
+              {event.status === "rescheduled" && (
+                <div className="ml-2 bg-yellow-500 text-white text-sm font-medium px-3 py-1 rounded-full">
+                  Rescheduled
+                </div>
+              )}
             </div>
             <h1 className="text-4xl sm:text-5xl font-bold mb-3">
               {event.name}
             </h1>
             <div className="flex items-center flex-wrap">
-              <div className="flex items-center mr-6 mb-2">
-                <FaCalendarAlt className="mr-2" />
-                {formatDate(event.date)}
+              <div className="flex flex-col mr-6 mb-2">
+                <div className="flex items-center">
+                  <FaCalendarAlt className="mr-2" />
+                  {formatDate(event.date)}
+                </div>
+                {/* Add this for rescheduled events */}
+                {event.status === "rescheduled" && event.original_date && (
+                  <div className="text-yellow-300 text-sm mt-1 flex items-center">
+                    <span className="line-through mr-1">
+                      Originally: {formatDate(event.original_date)}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center mr-6 mb-2">
-                <FaClock className="mr-2" />
-                {formatTime(event.time)}
-                {event.end_time && ` - ${formatTime(event.end_time)}`}
+
+              <div className="flex flex-col mr-6 mb-2">
+                <div className="flex items-center">
+                  <FaClock className="mr-2" />
+                  {formatTime(event.time)}
+                  {event.end_time && ` - ${formatTime(event.end_time)}`}
+                </div>
+                {/* Add this for rescheduled events */}
+                {event.status === "rescheduled" && event.original_time && (
+                  <div className="text-yellow-300 text-sm mt-1 flex items-center">
+                    <span className="line-through mr-1">
+                      Originally: {formatTime(event.original_time)}
+                    </span>
+                  </div>
+                )}
               </div>
+
               <div className="flex items-center mb-2">
                 <FaMapMarkerAlt className="mr-2" />
                 {event.venue}, {event.city}
@@ -316,6 +343,29 @@ const EventDetails = () => {
                   </p>
                 </div>
 
+                {event.status === "rescheduled" && (
+                  <div className="mt-6 mb-6 bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                    <h3 className="text-lg font-bold text-yellow-700 mb-2">
+                      Rescheduled Event
+                    </h3>
+                    <p className="text-yellow-700">
+                      This event has been rescheduled from its original date of{" "}
+                      <span className="font-medium">
+                        {formatDate(event.original_date)}
+                      </span>
+                      {event.original_time &&
+                        ` at ${formatTime(event.original_time)}`}
+                      .
+                    </p>
+                    {event.status_change_reason && (
+                      <p className="text-yellow-700 mt-2">
+                        <span className="font-medium">Reason:</span>{" "}
+                        {event.status_change_reason}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <EventGallery
                   mainImage={event.image_url}
                   imagePlaceholder="/api/placeholder/800/600?text=Event"
@@ -342,7 +392,7 @@ const EventDetails = () => {
                 reviews={reviews}
                 eventId={event.id}
                 onReviewAdded={(updatedReviews) => {
-                    setReviews(updatedReviews);
+                  setReviews(updatedReviews);
                 }}
               />
             )}
@@ -437,6 +487,16 @@ const EventDetails = () => {
 
               <div className="mt-6 border-t border-gray-200 pt-4">
                 <h3 className="font-bold mb-2">Event Information</h3>
+
+                {/* Add this rescheduling notice */}
+                {event.status === "rescheduled" && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3">
+                    <p className="text-sm text-yellow-700 font-medium">
+                      This event has been rescheduled
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-2 text-sm">
                   <div className="flex">
                     <span className="font-medium w-24">Date:</span>

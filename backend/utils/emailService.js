@@ -1,6 +1,7 @@
 // backend/utils/emailService.js
 import nodemailer from "nodemailer";
 import config from "../config/config.js";
+import * as db from "../config/db.js";
 
 // Create a transporter for sending emails
 const transporter = nodemailer.createTransport({
@@ -307,5 +308,132 @@ export const sendOrderConfirmationEmail = async (
   } catch (error) {
     console.error("Error sending order confirmation email:", error);
     throw error;
+  }
+};
+
+// Send event canceled notification with refund info
+export const sendEventCanceledEmail = async (user, event, purchaseInfo, refundInfo) => {
+  try {
+    const { getEmailTemplate } = await import('./emailTemplates.js');
+    
+    const template = getEmailTemplate('eventCanceled', {
+      userName: user.name,
+      userEmail: user.email,
+      eventName: event.name,
+      eventDate: event.date,
+      refundAmount: refundInfo.amount,
+      refundMethod: refundInfo.paymentMethod === 'credits' ? 'Account Credits' : 'Original Payment Method',
+      estimatedRefundTime: '5-10 business days',
+      orderReference: purchaseInfo.order_id
+    });
+    
+    const mailOptions = {
+      from: `"${config.email.fromName}" <${config.email.user}>`,
+      to: user.email,
+      subject: `Event Canceled: ${event.name} - Refund Processing`,
+      html: template.html,
+      text: template.text
+    };
+    
+    await transporter.sendMail(mailOptions);
+    console.log(`Event cancellation email sent to ${user.email}`);
+    
+    // Log the notification
+    await logNotification(user.id, event.id, 'event_canceled', user.email, template.text);
+    
+    return true;
+  } catch (error) {
+    console.error("Error sending event cancellation email:", error);
+    throw error;
+  }
+};
+
+// Send event rescheduled notification
+export const sendEventRescheduledEmail = async (user, event) => {
+  try {
+    const { getEmailTemplate } = await import('./emailTemplates.js');
+    
+    const template = getEmailTemplate('eventRescheduled', {
+      userName: user.name,
+      userEmail: user.email,
+      eventName: event.name,
+      originalDate: event.original_date,
+      originalTime: event.original_time,
+      newDate: event.date,
+      newTime: event.time,
+      venue: event.venue
+    });
+    
+    const mailOptions = {
+      from: `"${config.email.fromName}" <${config.email.user}>`,
+      to: user.email,
+      subject: `Event Rescheduled: ${event.name}`,
+      html: template.html,
+      text: template.text
+    };
+    
+    await transporter.sendMail(mailOptions);
+    console.log(`Event rescheduling email sent to ${user.email}`);
+    
+    // Log the notification
+    await logNotification(user.id, event.id, 'event_rescheduled', user.email, template.text);
+    
+    return true;
+  } catch (error) {
+    console.error("Error sending event rescheduling email:", error);
+    throw error;
+  }
+};
+
+// Send event reminder (1 week before)
+export const sendEventReminderEmail = async (user, event) => {
+  try {
+    const { getEmailTemplate } = await import('./emailTemplates.js');
+    
+    const template = getEmailTemplate('eventReminder', {
+      userName: user.name,
+      userEmail: user.email,
+      eventName: event.name,
+      eventDate: event.date,
+      eventTime: event.time,
+      venue: event.venue,
+      city: event.city
+    });
+    
+    const mailOptions = {
+      from: `"${config.email.fromName}" <${config.email.user}>`,
+      to: user.email,
+      subject: `Reminder: ${event.name} is Coming Up!`,
+      html: template.html,
+      text: template.text
+    };
+    
+    await transporter.sendMail(mailOptions);
+    console.log(`Event reminder email sent to ${user.email}`);
+    
+    // Log the notification
+    await logNotification(user.id, event.id, 'event_reminder', user.email, template.text);
+    
+    return true;
+  } catch (error) {
+    console.error("Error sending event reminder email:", error);
+    throw error;
+  }
+};
+
+// Log notification to database
+const logNotification = async (userId, eventId, notificationType, emailAddress, messageContent = '') => {
+  try {
+    const query = {
+      text: `INSERT INTO notification_history 
+             (user_id, event_id, notification_type, email_address, message_content, created_at) 
+             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+      values: [userId, eventId, notificationType, emailAddress, messageContent]
+    };
+    
+    await db.query(query);
+    console.log(`Notification logged for user ${userId}, event ${eventId}, type ${notificationType}`);
+  } catch (error) {
+    console.error('Error logging notification:', error);
   }
 };

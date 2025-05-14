@@ -43,10 +43,11 @@ const AdminEventForm = () => {
     image_url: "",
     category_id: "",
     subcategory_id: "",
-    organizer_id: "",
+    creator_id: "",
     min_price: "",
     max_price: "",
     status: "active",
+    status_change_reason: "",
     cancellation_policy:
       "Tickets can be refunded up to 7 days before the event date. Within 7 days of the event, no refunds will be issued except in exceptional circumstances. Contact support for assistance with refunds.",
     featured: false,
@@ -84,6 +85,7 @@ const AdminEventForm = () => {
           min_price: eventData.min_price || "",
           max_price: eventData.max_price || "",
           status: eventData.status || "active",
+          status_change_reason: eventData.status_change_reason || "",
           cancellation_policy:
             eventData.cancellation_policy ||
             "Tickets can be refunded up to 7 days before the event date. Within 7 days of the event, no refunds will be issued except in exceptional circumstances. Contact support for assistance with refunds.",
@@ -188,6 +190,20 @@ const AdminEventForm = () => {
         "city",
         "category_id",
       ];
+
+      // Add validation for status changes
+      if (formData.status === "canceled" && !formData.status_change_reason) {
+        setError("Please provide a reason for cancellation");
+        setSubmitting(false);
+        return;
+      }
+
+      if (formData.status === "rescheduled" && !formData.status_change_reason) {
+        setError("Please provide a reason for rescheduling");
+        setSubmitting(false);
+        return;
+      }
+
       const missingFields = requiredFields.filter((field) => !formData[field]);
 
       if (missingFields.length > 0) {
@@ -198,13 +214,10 @@ const AdminEventForm = () => {
         return;
       }
 
-      // Log the form data being sent (for debugging)
-      console.log("Submitting form data:", formData);
-
       // Format data properly for submission
       const dataToSubmit = {
         ...formData,
-        // Ensure integer fields are properly formatted (null instead of empty string)
+        // Ensure integer fields are properly formatted
         category_id: formData.category_id
           ? parseInt(formData.category_id)
           : null,
@@ -212,12 +225,10 @@ const AdminEventForm = () => {
           formData.subcategory_id && formData.subcategory_id.trim() !== ""
             ? parseInt(formData.subcategory_id)
             : null,
-        organizer_id:
-          formData.organizer_id && formData.organizer_id.trim() !== ""
-            ? parseInt(formData.organizer_id)
+        creator_id:
+          formData.creator_id && formData.creator_id.trim() !== ""
+            ? parseInt(formData.creator_id)
             : null,
-
-        // Ensure decimal fields are properly formatted
         min_price:
           formData.min_price && formData.min_price.toString().trim() !== ""
             ? parseFloat(formData.min_price)
@@ -232,26 +243,25 @@ const AdminEventForm = () => {
 
       if (isEditMode) {
         // Update existing event
-        console.log(`Updating event with ID: ${id}`);
-        try {
-          const response = await api.put(`/admin/events/${id}`, dataToSubmit);
-          console.log("Update response:", response.data);
+        const response = await api.put(`/admin/events/${id}`, dataToSubmit);
+        console.log("Event updated:", response.data);
+        // Custom success message based on status
+        if (formData.status === "canceled") {
+          setSuccess(
+            "Event has been canceled. Refunds will be processed automatically."
+          );
+        } else if (formData.status === "rescheduled") {
+          setSuccess(
+            "Event has been rescheduled. Ticket holders will be notified."
+          );
+        } else {
           setSuccess("Event updated successfully");
-        } catch (err) {
-          console.error("Update error:", err.response?.data || err);
-          throw err;
         }
       } else {
         // Create new event
-        console.log("Creating new event");
-        try {
-          const response = await api.post("/admin/events", dataToSubmit);
-          console.log("Create response:", response.data);
-          setSuccess("Event created successfully");
-        } catch (err) {
-          console.error("Create error:", err.response?.data || err);
-          throw err;
-        }
+        const response = await api.post("/admin/events", dataToSubmit);
+        console.log("Event created:", response.data);
+        setSuccess("Event created successfully");
       }
 
       // Redirect to events list after short delay
@@ -595,10 +605,74 @@ const AdminEventForm = () => {
             >
               <option value="active">Active</option>
               <option value="draft">Draft</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="canceled">Canceled</option>
+              <option value="rescheduled">Rescheduled</option>
               <option value="completed">Completed</option>
+              <option value="inactive">Inactive</option>
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.status === "canceled" &&
+                "Canceled events will automatically process refunds to all ticket holders"}
+              {formData.status === "rescheduled" &&
+                "Rescheduled events will notify all ticket holders of the new date and time"}
+            </p>
           </div>
+
+          {/* Additional fields for canceled events */}
+          {formData.status === "canceled" && (
+            <div className="md:col-span-2 mt-4 p-4 bg-red-50 rounded-md border border-red-200">
+              <h3 className="text-md font-semibold text-red-700 mb-2">
+                Cancellation Details
+              </h3>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cancellation Reason
+              </label>
+              <textarea
+                name="status_change_reason"
+                value={formData.status_change_reason || ""}
+                onChange={handleInputChange}
+                rows="2"
+                className="w-full p-2 border border-red-300 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                placeholder="Please provide a reason for cancellation (will be shared with attendees)"
+              ></textarea>
+              <p className="text-xs text-yellow-600 mt-1">
+                <FaExclamationTriangle className="inline mr-1" />
+                Updating the reason will send a new notification to ticket
+                holders.
+              </p>
+              <p className="text-xs text-red-600 mt-1">
+                <FaExclamationTriangle className="inline mr-1" />
+                This will automatically process refunds to all ticket holders!
+              </p>
+            </div>
+          )}
+
+          {/* Additional fields for rescheduled events */}
+          {formData.status === "rescheduled" && (
+            <div className="md:col-span-2 mt-4 p-4 bg-yellow-50 rounded-md border border-yellow-200">
+              <h3 className="text-md font-semibold text-yellow-700 mb-2">
+                Rescheduling Details
+              </h3>
+              <div className="mt-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Rescheduling Reason
+                </label>
+                <textarea
+                  name="status_change_reason"
+                  value={formData.status_change_reason || ""}
+                  onChange={handleInputChange}
+                  rows="2"
+                  className="w-full p-2 border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  placeholder="Please provide a reason for rescheduling (will be shared with attendees)"
+                ></textarea>
+                <p className="text-xs text-yellow-600 mt-1">
+                  <FaExclamationTriangle className="inline mr-1" />
+                  This will automatically notify all ticket holders of the new
+                  date and time.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Featured checkbox */}
           <div>

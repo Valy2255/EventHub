@@ -18,36 +18,11 @@ import faqRoutes from './routes/faqRoutes.js';
 import creditRoutes from './routes/creditRoutes.js';
 import legalDocumentRoutes from './routes/legalDocumentRoutes.js';
 import purchaseRoutes from './routes/purchaseRoutes.js';
+import paymentMethodRoutes from './routes/paymentMethodRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
-import * as scheduledTasks from './utils/scheduledTasks.js';
-import cron from 'node-cron';
+import { initializeScheduledTasks } from './utils/scheduledTasks.js';
 
 const app = express();
-
-const initScheduledTasks = () => {
-  console.log('Initializing scheduled tasks...');
-  
-  // Schedule automatic refund processing to run every day at midnight
-  cron.schedule('0 0 * * *', async () => {
-    try {
-      await scheduledTasks.processRefunds();
-    } catch (error) {
-      console.error('Error running scheduled refund task:', error);
-    }
-  });
-
-  cron.schedule('0 0 * * *', async () => {
-    try {
-      await scheduledTasks.cleanupPastEvents();
-    } catch (error) {
-      console.error('Error running scheduled cleanup task:', error);
-    }
-  });
-  
-  console.log('Scheduled tasks initialized');
-};
-
-
 
 // Create a global database connection pool
 global.pool = new pg.Pool({
@@ -79,6 +54,7 @@ app.use('/api/faqs', faqRoutes);
 app.use('/api/legal', legalDocumentRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/purchases', purchaseRoutes);
+app.use('/api/payment-methods', paymentMethodRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
@@ -94,8 +70,11 @@ app.listen(PORT, () => {
       console.error('Database connection error:', err);
     } else {
       console.log('Database connected successfully');
+      
+      // Initialize the enhanced scheduled tasks
+      // This uses the new comprehensive implementation from scheduledTasks.js
+      initializeScheduledTasks();
+      console.log('Enhanced scheduled tasks system initialized');
     }
-    // Initialize scheduled tasks
-    initScheduledTasks();
   });
 });

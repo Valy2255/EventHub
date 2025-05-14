@@ -81,9 +81,13 @@ export const findBySlug = async (categoryId, slug) => {
 export const getEvents = async (subcategoryId) => {
   const query = {
     text: `
-      SELECT e.* FROM events e
+      SELECT e.*, 
+             CASE WHEN e.status = 'rescheduled' THEN true ELSE false END AS is_rescheduled,
+             e.original_date, e.original_time
+      FROM events e
       WHERE e.subcategory_id = $1
-      ORDER BY e.date DESC
+      AND e.status IN ('active', 'rescheduled')
+      ORDER BY e.date ASC
     `,
     values: [subcategoryId]
   };
@@ -98,7 +102,7 @@ export const getAllWithEventCounts = async (categoryId) => {
     text: `
       SELECT s.*, COUNT(e.id) as event_count
       FROM subcategories s
-      LEFT JOIN events e ON s.id = e.subcategory_id AND e.status = 'active'
+      LEFT JOIN events e ON s.id = e.subcategory_id AND e.status IN ('active', 'rescheduled')
       WHERE s.category_id = $1
       GROUP BY s.id
       ORDER BY s.name ASC

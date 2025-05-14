@@ -145,11 +145,14 @@ export const getEventsBySubcategory = async (req, res, next) => {
     
     // Get all events from this subcategory
     const events = await Subcategory.getEvents(subcategory.id);
+
+    const totalCount = events.length;
     
     res.json({
       category,
       subcategory,
-      events
+      events,
+      totalCount
     });
   } catch (error) {
     next(error);
@@ -201,7 +204,8 @@ export const getEventsByCategoryPaginated = async (req, res, next) => {
     const totalPages = Math.ceil(totalCount / limit);
     res.json({
       events,
-      totalPages
+      totalPages,
+      totalCount
     });
   } catch (error) {
     next(error);
