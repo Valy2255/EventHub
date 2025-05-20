@@ -70,17 +70,34 @@ export const processRefunds = async (daysThreshold = 5) => {
 // Clean up past events
 export const cleanupPastEvents = async () => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    // Get current date and time
+    const now = new Date();
     
+    // Log with time zone information for debugging
+    console.log(`Running cleanup at: ${now.toString()} (local server time)`);
+    console.log(`ISO time: ${now.toISOString()}`);
+    console.log(`Time zone offset: ${now.getTimezoneOffset()} minutes`);
+    
+    // Format date for SQL (use your local format to match your database)
+    const currentDateStr = now.toISOString().split('T')[0];
+    const currentTimeStr = now.toTimeString().split(' ')[0];
+    
+    console.log(`Comparing with date: ${currentDateStr}, time: ${currentTimeStr}`);
+    
+    // Option 1: Using PostgreSQL's timezone conversion
     const result = await db.query(`
       UPDATE events 
       SET status = 'inactive' 
-      WHERE date < $1 AND status = 'active'
-    `, [today]);
+      WHERE (date < CURRENT_DATE OR (date = CURRENT_DATE AND "time" < CURRENT_TIME))
+      AND status = 'active'
+      RETURNING id, name, date, time
+    `);
     
-    console.log(`Updated ${result.rowCount} past events to inactive status`);
+    console.log(`Updated ${result.rowCount} past events to inactive status:`, result.rows);
+    return result.rowCount;
   } catch (error) {
     console.error('Error cleaning up past events:', error);
+    throw error;
   }
 };
 

@@ -18,7 +18,7 @@ import { useAuth } from '../hooks/useAuth';
 import api from '../services/api';
 
 const UserProfile = () => {
-  const { user, updateUser } = useAuth();
+  const { user, setUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -62,7 +62,7 @@ const UserProfile = () => {
     
     try {
       const response = await api.put('/users/profile', formData);
-      updateUser(response.data);
+      setUser(response.data);
       setIsEditing(false);
     } catch (err) {
       console.error('Error updating profile:', err);

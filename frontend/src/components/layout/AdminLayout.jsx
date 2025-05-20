@@ -1,6 +1,7 @@
 // src/components/layout/AdminLayout.jsx
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useChat } from "../../hooks/useChat";
 import {
   FaTachometerAlt,
   FaUsers,
@@ -14,12 +15,14 @@ import {
   FaTicketAlt,
   FaQuestion,
   FaFileAlt,
+  FaComments
 } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import api from "../../services/api";
 
 const AdminLayout = () => {
   const { user, logout } = useAuth();
+  const { unreadCount } = useChat();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
@@ -104,6 +107,13 @@ const AdminLayout = () => {
       badge: stats.subcategories > 0 ? stats.subcategories : null,
     },
     {
+      path: "/admin/chat",
+      label: "Live Chat",
+      icon: <FaComments />,
+      badge: unreadCount > 0 ? unreadCount : null,
+      badgeColor: "bg-red-500" // Highlight unread messages with red badge
+    },
+    {
       path: "/admin/refunds",
       label: "Refunds",
       icon: <FaMoneyBillWave />,
@@ -148,6 +158,17 @@ const AdminLayout = () => {
 
           {/* Right side navigation */}
           <div className="flex items-center space-x-4">
+            {unreadCount > 0 && (
+              <Link 
+                to="/admin/chat"
+                className="relative text-white hover:text-purple-200 flex items-center"
+              >
+                <FaComments className="text-xl" />
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              </Link>
+            )}
             <Link
               to="/"
               className="text-white hover:text-purple-200 flex items-center whitespace-nowrap"
@@ -187,9 +208,7 @@ const AdminLayout = () => {
                 {item.badge && (
                   <span
                     className={`text-white text-xs font-medium py-0.5 px-2 rounded-full ${
-                      item.path === "/admin/refunds"
-                        ? "bg-red-500"
-                        : "bg-blue-500"
+                      item.badgeColor || (item.path === "/admin/refunds" ? "bg-red-500" : "bg-blue-500")
                     }`}
                   >
                     {item.badge}
@@ -227,9 +246,7 @@ const AdminLayout = () => {
                     {item.badge && (
                       <span
                         className={`text-white text-xs font-medium py-0.5 px-2 rounded-full ${
-                          item.path === "/admin/refunds"
-                            ? "bg-red-500"
-                            : "bg-blue-500"
+                          item.badgeColor || (item.path === "/admin/refunds" ? "bg-red-500" : "bg-blue-500")
                         }`}
                       >
                         {item.badge}

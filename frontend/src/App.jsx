@@ -28,25 +28,47 @@ import TicketPage from "./pages/TicketPage";
 import PurchasePage from "./pages/PurchasePage";
 import PurchaseHistoryPage from "./pages/PurchaseHistoryPage";
 import PaymentMethods from "./pages/PaymentMethods";
+import ChatWidget from "./components/chat/ChatWidget";
 
 import { AuthProvider } from "./context/AuthContext";
+import { SocketProvider } from "./context/SocketContext";
+import { ChatProvider } from "./context/ChatContext";
+import { useAuth } from "./hooks/useAuth";
 import AdminRoutes from "./routes/AdminRoutes";
+
+// Main layout component with chat widget
+const MainLayout = ({ children }) => {
+  const { user } = useAuth();
+  
+  return (
+    <>
+      <Header />
+      <main className="flex-grow bg-gray-100">
+        {children}
+      </main>
+      <Footer />
+      
+      {/* Only show chat widget for authenticated users who are not admins */}
+      {user && user.role !== 'admin' && <ChatWidget />}
+    </>
+  );
+};
 
 function App() {
   return (
     <AuthProvider>
-      <div className="flex flex-col min-h-screen">
-        <Routes>
-          {/* Admin Routes - Completely separate */}
-          <Route path="/admin/*" element={<AdminRoutes />} />
+      <SocketProvider>
+      <ChatProvider>
+        <div className="flex flex-col min-h-screen">
+          <Routes>
+            {/* Admin Routes - Completely separate */}
+            <Route path="/admin/*" element={<AdminRoutes />} />
 
-          {/* User Routes - Main layout for all user-facing pages */}
-          <Route
-            path="*"
-            element={
-              <>
-                <Header />
-                <main className="flex-grow bg-gray-100">
+            {/* User Routes - Main layout for all user-facing pages */}
+            <Route
+              path="*"
+              element={
+                <MainLayout>
                   <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
@@ -123,13 +145,13 @@ function App() {
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>
-                </main>
-                <Footer />
-              </>
-            }
-          />
-        </Routes>
-      </div>
+                </MainLayout>
+              }
+            />
+          </Routes>
+        </div>
+      </ChatProvider>
+      </SocketProvider>
     </AuthProvider>
   );
 }

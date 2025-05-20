@@ -12,6 +12,7 @@ import AdminRefunds from '../pages/admin/AdminRefunds';
 import AdminFAQs from '../pages/admin/AdminFAQs';
 import AdminLegalDocuments from '../pages/admin/AdminLegalDocuments';
 import TicketCheckIn from '../pages/admin/TicketCheckIn';
+import AdminChat from '../pages/admin/AdminChat';
 
 const AdminRoutes = () => {
   return (
@@ -29,6 +30,7 @@ const AdminRoutes = () => {
           <Route path="legal-documents" element={<AdminLegalDocuments />} />
           <Route path="refunds" element={<AdminRefunds />} />
           <Route path="check-in" element={<TicketCheckIn />} />
+          <Route path="chat" element={<AdminChat />} />
         </Route>
       </Route>
     </Routes>

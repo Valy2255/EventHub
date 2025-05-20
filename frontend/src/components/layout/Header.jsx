@@ -43,6 +43,7 @@ export default function Header() {
   const rightSearchRef = useRef(null);
   const locationDropdownRef = useRef(null);
   const searchInputRef = useRef(null);
+  const userDropdownRef = useRef(null);
 
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
@@ -95,12 +96,19 @@ export default function Header() {
         setIsWideSearchFocused(false);
         setShowSuggestions(false);
       }
+      if (
+        userDropdownRef.current &&
+        !userDropdownRef.current.contains(event.target) &&
+        isDropdownOpen
+      ) {
+        setIsDropdownOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, []);
+  }, [isDropdownOpen]);
 
   // New effect to fetch search suggestions as user types
   useEffect(() => {
@@ -411,14 +419,22 @@ export default function Header() {
           )}
 
           {/* User account section */}
-          <div className="relative">
+          <div className="relative" ref={userDropdownRef}>
             {user ? (
               <>
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="flex items-center space-x-2 hover:text-purple-400 transition-colors"
                 >
-                  <FaUserCircle size={24} />
+                  {user.profile_image ? (
+                    <img
+                      src={user.profile_image}
+                      alt={user.name}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <FaUserCircle size={24} />
+                  )}
                   <span>{user.name}</span>
                 </button>
                 {isDropdownOpen && (
@@ -695,7 +711,6 @@ export default function Header() {
               <button
                 type="submit"
                 className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-8 rounded-r-md transition duration-200"
-                
                 disabled={isSearching}
               >
                 {isSearching ? (

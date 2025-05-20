@@ -8,8 +8,11 @@ import {
   FaMapMarkerAlt,
   FaPaperPlane,
   FaSpinner,
+  FaComment,
 } from "react-icons/fa";
 import api from '../services/api';
+import ChatWidget from '../components/chat/ChatWidget';
+import { useChat } from '../hooks/useChat';
 
 const ContactPage = () => {
   const [formData, setFormData] = useState({
@@ -19,6 +22,7 @@ const ContactPage = () => {
     message: "",
   });
 
+  const { toggleChat } = useChat();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -32,36 +36,36 @@ const ContactPage = () => {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setIsSubmitting(true);
-  setSubmitError(null);
+    e.preventDefault();
+    setIsSubmitting(true);
+    setSubmitError(null);
 
-  try {
-    const response = await api.post("contact/submit", formData);
-    
-    console.log("Form submitted successfully:", response.data);
-    
-    // Reset form and show success message
-    setFormData({
-      name: "",
-      email: "",
-      subject: "",
-      message: "",
-    });
-    setSubmitSuccess(true);
-    setTimeout(() => {
-      setSubmitSuccess(false);
-    }, 5000);
-  } catch (error) {
-    console.error("Error submitting form:", error);
-    setSubmitError(
-      error.response?.data?.error || 
-      "There was an error sending your message. Please try again later."
-    );
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+    try {
+      const response = await api.post("contact/submit", formData);
+      
+      console.log("Form submitted successfully:", response.data);
+      
+      // Reset form and show success message
+      setFormData({
+        name: "",
+        email: "",
+        subject: "",
+        message: "",
+      });
+      setSubmitSuccess(true);
+      setTimeout(() => {
+        setSubmitSuccess(false);
+      }, 5000);
+    } catch (error) {
+      console.error("Error submitting form:", error);
+      setSubmitError(
+        error.response?.data?.error || 
+        "There was an error sending your message. Please try again later."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -100,15 +104,15 @@ const ContactPage = () => {
           {/* Chat */}
           <div className="bg-white rounded-xl shadow-md p-8 text-center transition-transform hover:-translate-y-1">
             <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FaPaperPlane className="text-purple-600 text-2xl" />
+              <FaComment className="text-purple-600 text-2xl" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Live Chat</h3>
             <p className="text-gray-600 mb-4">
-              Already have tickets? Chat with us through your account.
+              Chat with our support team in real-time for immediate assistance.
             </p>
             <button
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-              onClick={() => alert("Chat feature coming soon!")}
+              onClick={toggleChat}
             >
               Start Chat
             </button>
@@ -303,6 +307,9 @@ const ContactPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Chat Widget */}
+      <ChatWidget />
     </div>
   );
 };
