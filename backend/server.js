@@ -19,6 +19,7 @@ import creditRoutes from './routes/creditRoutes.js';
 import legalDocumentRoutes from './routes/legalDocumentRoutes.js';
 import purchaseRoutes from './routes/purchaseRoutes.js';
 import paymentMethodRoutes from './routes/paymentMethodRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
 import { initializeScheduledTasks } from './utils/scheduledTasks.js';
 
@@ -55,6 +56,7 @@ app.use('/api/legal', legalDocumentRoutes);
 app.use('/api/credits', creditRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

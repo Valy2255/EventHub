@@ -40,7 +40,7 @@ export const initializeScheduledTasks = () => {
   });
   
   // Process status changes - runs every hour
-  cron.schedule('* * * * *', async () => {
+  cron.schedule('0 * * * *', async () => {
     try {
       await processEventStatusChanges();
     } catch (error) {

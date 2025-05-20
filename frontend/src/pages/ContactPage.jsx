@@ -1,63 +1,68 @@
-import { useState } from 'react';
-import { 
-  FaFacebook, 
-  FaTwitter, 
-  FaInstagram, 
-  FaEnvelope, 
-  FaPhone, 
+import { useState } from "react";
+import {
+  FaFacebook,
+  FaTwitter,
+  FaInstagram,
+  FaEnvelope,
+  FaPhone,
   FaMapMarkerAlt,
   FaPaperPlane,
-  FaSpinner
-} from 'react-icons/fa';
+  FaSpinner,
+} from "react-icons/fa";
+import api from '../services/api';
 
 const ContactPage = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: ''
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
   });
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-  
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
-  
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmitError(null);
+  e.preventDefault();
+  setIsSubmitting(true);
+  setSubmitError(null);
+
+  try {
+    const response = await api.post("contact/submit", formData);
     
-    try {
-      // Here you would typically call an API to send the email
-      // For now, we'll simulate a successful submission after 1 second
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Reset form and show success message
-      setFormData({
-        name: '',
-        email: '',
-        subject: '',
-        message: ''
-      });
-      setSubmitSuccess(true);
-      setTimeout(() => setSubmitSuccess(false), 5000);
-      
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      setSubmitError('There was an error sending your message. Please try again later.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
+    console.log("Form submitted successfully:", response.data);
+    
+    // Reset form and show success message
+    setFormData({
+      name: "",
+      email: "",
+      subject: "",
+      message: "",
+    });
+    setSubmitSuccess(true);
+    setTimeout(() => {
+      setSubmitSuccess(false);
+    }, 5000);
+  } catch (error) {
+    console.error("Error submitting form:", error);
+    setSubmitError(
+      error.response?.data?.error || 
+      "There was an error sending your message. Please try again later."
+    );
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
   return (
     <div className="bg-gray-50 min-h-screen">
       {/* Hero Section */}
@@ -65,11 +70,12 @@ const ContactPage = () => {
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Contact Us</h1>
           <p className="text-xl max-w-2xl mx-auto">
-            We're here to help. For any questions get in touch with us by email, chat or phone.
+            We're here to help. For any questions get in touch with us by email,
+            chat or phone.
           </p>
         </div>
       </div>
-      
+
       {/* Contact Options */}
       <div className="container mx-auto px-4 py-12">
         {/* Options Cards */}
@@ -83,14 +89,14 @@ const ContactPage = () => {
             <p className="text-gray-600 mb-4">
               Send us an email and we'll get back to you within 24 hours.
             </p>
-            <a 
-              href="mailto:braconieruvalica99@gmail.com" 
+            <a
+              href="mailto:braconieruvalica99@gmail.com"
               className="text-purple-600 font-medium hover:text-purple-800"
             >
               braconieruvalica99@gmail.com
             </a>
           </div>
-          
+
           {/* Chat */}
           <div className="bg-white rounded-xl shadow-md p-8 text-center transition-transform hover:-translate-y-1">
             <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -100,14 +106,14 @@ const ContactPage = () => {
             <p className="text-gray-600 mb-4">
               Already have tickets? Chat with us through your account.
             </p>
-            <button 
+            <button
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-              onClick={() => alert('Chat feature coming soon!')}
+              onClick={() => alert("Chat feature coming soon!")}
             >
               Start Chat
             </button>
           </div>
-          
+
           {/* Social Media */}
           <div className="bg-white rounded-xl shadow-md p-8 text-center transition-transform hover:-translate-y-1">
             <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -118,25 +124,25 @@ const ContactPage = () => {
               Connect with us on social media for updates and support.
             </p>
             <div className="flex justify-center space-x-4">
-              <a 
-                href="https://www.facebook.com/ghita.valentin.92/" 
-                target="_blank" 
+              <a
+                href="https://www.facebook.com/ghita.valentin.92/"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-purple-600"
               >
                 <FaFacebook size={24} />
               </a>
-              <a 
-                href="https://x.com/ValyOnHL" 
-                target="_blank" 
+              <a
+                href="https://x.com/ValyOnHL"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-purple-600"
               >
                 <FaTwitter size={24} />
               </a>
-              <a 
-                href="https://www.instagram.com/ghitavalentinn/" 
-                target="_blank" 
+              <a
+                href="https://www.instagram.com/ghitavalentinn/"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-purple-600"
               >
@@ -145,55 +151,66 @@ const ContactPage = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Help Topics */}
         <div className="mb-16">
-          <h2 className="text-2xl font-bold text-center mb-8">Frequently Asked Help Topics</h2>
+          <h2 className="text-2xl font-bold text-center mb-8">
+            Frequently Asked Help Topics
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <a 
-              href="/faq" 
+            <a
+              href="/faq"
               className="bg-white p-4 rounded-lg shadow hover:shadow-md border border-gray-100 transition-shadow"
             >
-              <h3 className="font-semibold text-lg mb-1">Frequently Asked Questions</h3>
+              <h3 className="font-semibold text-lg mb-1">
+                Frequently Asked Questions
+              </h3>
               <p className="text-gray-600">Find answers to common questions</p>
             </a>
-            <a 
-              href="/profile/tickets" 
+            <a
+              href="/profile/tickets"
               className="bg-white p-4 rounded-lg shadow hover:shadow-md border border-gray-100 transition-shadow"
             >
               <h3 className="font-semibold text-lg mb-1">My Tickets</h3>
               <p className="text-gray-600">Manage your event tickets</p>
             </a>
-            <a 
-              href="/refunds" 
+            <a
+              href="/refunds"
               className="bg-white p-4 rounded-lg shadow hover:shadow-md border border-gray-100 transition-shadow"
             >
-              <h3 className="font-semibold text-lg mb-1">Refunds & Exchanges</h3>
+              <h3 className="font-semibold text-lg mb-1">
+                Refunds & Exchanges
+              </h3>
               <p className="text-gray-600">Learn about our refund policies</p>
             </a>
           </div>
         </div>
-        
+
         {/* Contact Form */}
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-2xl font-bold text-center mb-8">Send Us a Message</h2>
+          <h2 className="text-2xl font-bold text-center mb-8">
+            Send Us a Message
+          </h2>
           <div className="bg-white rounded-xl shadow-md p-8">
             {submitSuccess ? (
               <div className="bg-green-100 text-green-800 p-4 rounded-lg mb-6">
                 Thank you for your message! We'll get back to you soon.
               </div>
             ) : null}
-            
+
             {submitError ? (
               <div className="bg-red-100 text-red-800 p-4 rounded-lg mb-6">
                 {submitError}
               </div>
             ) : null}
-            
+
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label htmlFor="name" className="block text-gray-700 font-medium mb-2">
+                  <label
+                    htmlFor="name"
+                    className="block text-gray-700 font-medium mb-2"
+                  >
                     Your Name
                   </label>
                   <input
@@ -208,7 +225,10 @@ const ContactPage = () => {
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
+                  <label
+                    htmlFor="email"
+                    className="block text-gray-700 font-medium mb-2"
+                  >
                     Email Address
                   </label>
                   <input
@@ -223,9 +243,12 @@ const ContactPage = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="mb-6">
-                <label htmlFor="subject" className="block text-gray-700 font-medium mb-2">
+                <label
+                  htmlFor="subject"
+                  className="block text-gray-700 font-medium mb-2"
+                >
                   Subject
                 </label>
                 <input
@@ -239,9 +262,12 @@ const ContactPage = () => {
                   placeholder="How can we help you?"
                 />
               </div>
-              
+
               <div className="mb-6">
-                <label htmlFor="message" className="block text-gray-700 font-medium mb-2">
+                <label
+                  htmlFor="message"
+                  className="block text-gray-700 font-medium mb-2"
+                >
                   Message
                 </label>
                 <textarea
@@ -255,7 +281,7 @@ const ContactPage = () => {
                   placeholder="Please describe your question or issue in detail..."
                 />
               </div>
-              
+
               <button
                 type="submit"
                 disabled={isSubmitting}
