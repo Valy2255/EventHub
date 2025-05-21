@@ -11,7 +11,7 @@ import {
   FaClock,
   FaBan,
   FaRunning,
-  FaCogs
+  FaCogs,
 } from "react-icons/fa";
 import api from "../../services/api";
 
@@ -82,18 +82,24 @@ const AdminRefunds = () => {
       setError(null);
       setUpdateSuccess(null);
 
-      const response = await api.post('/admin/refunds/process', { 
-        daysThreshold: parseInt(daysThreshold, 10) 
+      console.log(`Sending request with daysThreshold: ${daysThreshold}`);
+
+      const response = await api.post("/admin/refunds/process", {
+        daysThreshold: parseInt(daysThreshold, 10),
       });
 
       setShowProcessingModal(false);
-      
+
+      console.log("API response:", response.data); // Add this to debug
+
       if (response.data.count > 0) {
-        setUpdateSuccess(`Successfully processed ${response.data.count} pending refunds`);
+        setUpdateSuccess(
+          `Successfully processed ${response.data.count} pending refunds`
+        );
         // Refresh the refunds list to show updated statuses
         fetchRefunds();
       } else {
-        setUpdateSuccess('No pending refunds needed processing');
+        setUpdateSuccess("No pending refunds needed processing");
       }
 
       // Clear success message after 5 seconds
@@ -101,13 +107,17 @@ const AdminRefunds = () => {
         setUpdateSuccess(null);
       }, 5000);
     } catch (err) {
-      console.error('Error processing refunds:', err);
-      setError('Failed to process refunds. Please try again.');
+      console.error("Error processing refunds:", err);
+      // This will show the actual error message from the server
+      setError(
+        err.response?.data?.error ||
+          "Failed to process refunds. Please try again."
+      );
+      setShowProcessingModal(false); // Close the modal on error
     } finally {
       setProcessingRefunds(false);
     }
   };
-
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleString();
@@ -415,11 +425,15 @@ const AdminRefunds = () => {
       {showProcessingModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Process Pending Refunds</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Process Pending Refunds
+            </h3>
             <p className="text-gray-600 mb-4">
-              This will automatically mark refunds that have been in "processing" status for longer than the specified number of days as "completed".
+              This will automatically mark refunds that have been in
+              "processing" status for longer than the specified number of days
+              as "completed".
             </p>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Days Threshold
@@ -433,10 +447,11 @@ const AdminRefunds = () => {
                 className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Refunds in "processing" status for this many days will be automatically completed
+                Refunds in "processing" status for this many days will be
+                automatically completed
               </p>
             </div>
-            
+
             <div className="flex justify-end space-x-3 mt-6">
               <button
                 onClick={() => setShowProcessingModal(false)}

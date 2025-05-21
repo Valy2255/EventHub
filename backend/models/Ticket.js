@@ -400,7 +400,7 @@ export const getAllRefunds = async () => {
       JOIN users u ON t.user_id = u.id
       JOIN events e ON t.event_id = e.id
       JOIN ticket_types tt ON t.ticket_type_id = tt.id
-      WHERE t.status = 'cancelled' 
+      WHERE t.status = 'cancelled' OR t.status = 'refunded'
       ORDER BY 
         CASE
           WHEN t.refund_status = 'requested' OR t.refund_status IS NULL THEN 1
@@ -426,25 +426,200 @@ export const getAllRefunds = async () => {
  * This should be called by a scheduled job rather than using setTimeout
  */
 export const processAutomaticRefundCompletion = async (daysThreshold = 5) => {
-  const query = {
-    text: `
-      UPDATE tickets
-      SET refund_status = 'completed',
-          updated_at = CURRENT_TIMESTAMP
-      WHERE status = 'cancelled'
-      AND refund_status = 'processing'
-      AND cancelled_at < (CURRENT_TIMESTAMP - INTERVAL '${daysThreshold} days')
-      RETURNING id, event_id, ticket_type_id, user_id
-    `,
-    values: []
-  };
+  // Use a transaction to ensure all operations succeed or fail together
+  const client = await db.pool.connect();
   
   try {
-    const result = await db.query(query);
-    return result.rows;
+    await client.query('BEGIN');
+    
+    // Find tickets eligible for automatic completion
+    const eligibleTicketsQuery = {
+      text: `
+        SELECT t.id, t.user_id, t.event_id, t.ticket_type_id, 
+               t.price, t.purchase_id, e.name as event_name
+        FROM tickets t
+        JOIN events e ON t.event_id = e.id
+        WHERE t.status = 'cancelled'
+        AND t.refund_status = 'processing'
+        AND t.cancelled_at < (CURRENT_TIMESTAMP - INTERVAL '${daysThreshold} days')
+      `,
+      values: []
+    };
+    
+    console.log(`Looking for refunds pending for more than ${daysThreshold} days...`);
+    const eligibleTickets = await client.query(eligibleTicketsQuery);
+    console.log(`Found ${eligibleTickets.rows.length} eligible tickets for automatic processing`);
+    
+    // Process each eligible ticket
+    const processedTickets = [];
+    
+    for (const ticket of eligibleTickets.rows) {
+      console.log(`Processing automatic refund for ticket ${ticket.id}`);
+      
+      // 1. Update ticket status to 'refunded' and refund_status to 'completed'
+      await client.query(
+        `UPDATE tickets 
+         SET status = 'refunded', 
+             refund_status = 'completed', 
+             updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $1`,
+        [ticket.id]
+      );
+      
+      // 2. Get payment information
+      const paymentResult = await client.query(
+        `SELECT p.* FROM payments p
+         JOIN payment_tickets pt ON pt.payment_id = p.id
+         WHERE pt.ticket_id = $1 LIMIT 1`,
+        [ticket.id]
+      );
+      
+      let payment = null;
+      if (paymentResult.rows.length > 0) {
+        payment = paymentResult.rows[0];
+      } else {
+        // Try to find through purchase
+        const purchasePaymentResult = await client.query(
+          `SELECT p.* FROM payments p
+           WHERE p.purchase_id = $1 LIMIT 1`,
+          [ticket.purchase_id]
+        );
+        
+        if (purchasePaymentResult.rows.length > 0) {
+          payment = purchasePaymentResult.rows[0];
+        }
+      }
+      
+      // 3. Create refund record if payment found
+      if (payment) {
+        const refundAmount = parseFloat(ticket.price || 0);
+        
+        // Get payment method if available (for card payments)
+        let paymentMethodId = null;
+        
+        if (payment.payment_method === 'card') {
+          const paymentMethodResult = await client.query(
+            `SELECT id FROM payment_methods 
+             WHERE user_id = $1 AND is_default = true 
+             ORDER BY created_at DESC LIMIT 1`,
+            [ticket.user_id]
+          );
+          
+          if (paymentMethodResult.rows.length > 0) {
+            paymentMethodId = paymentMethodResult.rows[0].id;
+          }
+        }
+        
+        // Create refund record
+        const refundData = {
+          purchase_id: ticket.purchase_id,
+          payment_id: payment.id,
+          payment_method_id: paymentMethodId,
+          payment_method_type: payment.payment_method || 'card',
+          amount: refundAmount,
+          status: 'completed',
+          reference_id: `auto_ref_${Date.now()}_${ticket.id}`,
+          notes: `Automatic refund for ticket ID: ${ticket.id} after ${daysThreshold} days in processing`
+        };
+        
+        const insertResult = await client.query(
+          `INSERT INTO refunds
+           (purchase_id, payment_id, payment_method_id, payment_method_type, amount, 
+            status, reference_id, notes, completed_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+           RETURNING id`,
+          [
+            refundData.purchase_id,
+            refundData.payment_id,
+            refundData.payment_method_id,
+            refundData.payment_method_type,
+            refundData.amount,
+            refundData.status,
+            refundData.reference_id,
+            refundData.notes
+          ]
+        );
+        
+        const refundId = insertResult.rows[0].id;
+        
+        // 4. Process refund based on payment method
+        if (payment.payment_method === 'credits') {
+          // FIXED: Update both credit balance AND create transaction record
+          // by using User.addCredits instead of just inserting transaction
+          try {
+            // Update user's credit balance
+            const updateQuery = {
+              text: `
+                UPDATE users 
+                SET credits = credits + $1 
+                WHERE id = $2 
+                RETURNING credits
+              `,
+              values: [refundAmount, ticket.user_id]
+            };
+            
+            const userResult = await client.query(updateQuery);
+            
+            if (userResult.rows.length === 0) {
+              throw new Error(`User with ID ${ticket.user_id} not found`);
+            }
+            
+            // Record the transaction (still done inside the transaction)
+            const transactionQuery = {
+              text: `
+                INSERT INTO credit_transactions 
+                (user_id, amount, type, description, reference_id, reference_type) 
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING *
+              `,
+              values: [
+                ticket.user_id, 
+                refundAmount, 
+                'refund', 
+                `Automatic refund for ticket to: ${ticket.event_name}`, 
+                refundId, 
+                'refund'
+              ]
+            };
+            
+            await client.query(transactionQuery);
+            
+            const newBalance = parseFloat(userResult.rows[0].credits);
+            console.log(`Refunded ${refundAmount} credits to user ${ticket.user_id}. New balance: ${newBalance}`);
+          } catch (creditError) {
+            console.error(`Error processing credit refund for ticket ${ticket.id}:`, creditError);
+            throw creditError; // Re-throw to trigger rollback
+          }
+        } else if (payment.payment_method === 'card') {
+          // In production, you'd call your payment processor API here
+          console.log(`Simulating automatic card refund of $${refundAmount} for ticket ${ticket.id}`);
+        }
+        
+        console.log(`Created automatic refund record with ID: ${refundId} for ticket ${ticket.id}`);
+      } else {
+        console.warn(`No payment found for ticket ${ticket.id}, skipping refund record creation`);
+      }
+      
+      processedTickets.push({
+        id: ticket.id,
+        event_id: ticket.event_id,
+        ticket_type_id: ticket.ticket_type_id,
+        user_id: ticket.user_id,
+        price: ticket.price,
+        status: 'refunded',
+        refund_status: 'completed'
+      });
+    }
+    
+    await client.query('COMMIT');
+    return processedTickets;
+    
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error processing automatic refund completion:', error);
     throw error;
+  } finally {
+    client.release();
   }
 };
 

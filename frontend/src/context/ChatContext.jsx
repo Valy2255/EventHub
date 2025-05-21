@@ -201,15 +201,40 @@ export const ChatProvider = ({ children }) => {
   ]);
 
   // conversation_started
-  useEffect(() => {
-    if (!connected) return;
-    const handler = ({ conversationId, message }) => {
+   useEffect(() => {
+    if (!connected || !user) return;
+
+    const handler = async ({ conversationId, message, client_name, client_email }) => {
+      // --- 1) Add it to your sidebar immediately ---
+      if (user.role === "admin") {
+        setConversations(prev => {
+          if (prev.some(c => c.id === conversationId)) return prev;
+          return [{
+            id:            conversationId,
+            last_message:  typeof message === "string" ? message : message.message,
+            updated_at:    new Date().toISOString(),
+            unread_count:  1,
+            client_name,
+            client_email,
+          }, ...prev];
+        });
+        setUnreadCount(n => n + 1);
+
+        // --- 2) Join that new room, so you get all its future events ---
+        emitEvent("join_conversation", conversationId);
+      }
+
+      // --- 3) Switch the UI into that conversation and show the first message ---
       setActiveConversation(conversationId);
-      setMessages([message]);
+      setMessages([ typeof message === "string" ? { message } : message ]);
+
+      // --- 4) (Optional) if you want to fetch the full list—uncomment this)
+      // await fetchAdminConversations();
     };
+
     const off = onEvent("conversation_started", handler);
     return off;
-  }, [connected, onEvent]);
+  }, [connected, user, emitEvent, onEvent]);
 
   // ─── **new**: HTTP-fetch full history immediately on convo switch
   useEffect(() => {

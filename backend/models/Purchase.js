@@ -52,24 +52,39 @@ export const findByUser = async (userId, page = 1, limit = 10) => {
 };
 
 // Find purchase by ID
+// Fix the findById function in Purchase.js
 export const findById = async (id) => {
   try {
+    // Add null check to prevent SQL errors
+    if (id === null || id === undefined) {
+      console.log('Purchase ID is null or undefined');
+      return null;
+    }
+    
+    // Convert to integer if it's a string
+    const purchaseId = typeof id === 'string' ? parseInt(id, 10) : id;
+    
+    // Add validation to ensure it's a valid integer
+    if (isNaN(purchaseId)) {
+      console.log(`Invalid purchase ID: ${id}`);
+      return null;
+    }
+    
     const query = {
       text: `
-        SELECT * FROM purchases
+        SELECT * FROM purchases 
         WHERE id = $1
       `,
-      values: [id]
+      values: [purchaseId]
     };
     
     const result = await db.query(query);
-    return result.rows[0];
+    return result.rows.length > 0 ? result.rows[0] : null;
   } catch (error) {
-    console.error('Error finding purchase by ID:', error);
+    console.error('Error in Purchase.findById:', error);
     throw error;
   }
 };
-
 // Get items (tickets) by purchase ID
 export const getItemsByPurchaseId = async (purchaseId) => {
   try {
@@ -189,5 +204,46 @@ export const findTicketsByPurchaseId = async (purchaseId) => {
   } catch (error) {
     console.error('Error finding tickets by purchase ID:', error);
     throw error;
+  }
+};
+
+// In models/Purchase.js
+// In models/Purchase.js - fix the findByPaymentId function
+export const findByPaymentId = async (paymentId) => {
+  try {
+    if (!paymentId) {
+      console.log('Payment ID is null or undefined');
+      return null;
+    }
+    
+    // Convert to integer if it's a string
+    const parsedPaymentId = typeof paymentId === 'string' ? parseInt(paymentId, 10) : paymentId;
+    
+    if (isNaN(parsedPaymentId)) {
+      console.log(`Invalid payment ID: ${paymentId}`);
+      return null;
+    }
+    
+    // Using a join to connect tickets, payment_tickets, and purchases
+    const query = {
+      text: `
+        SELECT DISTINCT p.* 
+        FROM purchases p
+        JOIN tickets t ON t.purchase_id = p.id
+        JOIN payment_tickets pt ON pt.ticket_id = t.id
+        WHERE pt.payment_id = $1
+        LIMIT 1
+      `,
+      values: [parsedPaymentId]
+    };
+    
+    // This is the correct way to use db.query with pg
+    const result = await db.query(query);
+    return result.rows.length > 0 ? result.rows[0] : null;
+    
+  } catch (error) {
+    console.error('Error in Purchase.findByPaymentId:', error);
+    // Return null instead of throwing the error to prevent Promise.all from failing
+    return null;
   }
 };

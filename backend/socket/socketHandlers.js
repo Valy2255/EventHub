@@ -158,11 +158,11 @@ export const setupSocketHandlers = (io) => {
         });
 
         // Notify all admins about new conversation
-        io.to("admins").emit("new_conversation", {
+        io.to("admins").emit("conversation_started", {
           conversationId,
-          clientId: socket.user.id,
-          clientName: socket.user.name,
-          initialMessage,
+          message, // the fully-formed message object you just saved
+          client_name: socket.user.name,
+          client_email: socket.user.email,
         });
       } catch (error) {
         console.error("Error starting conversation:", error);

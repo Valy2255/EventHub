@@ -78,40 +78,54 @@ export const updatePassword = async (userId, password) => {
 
 // Add credits to user
 export const addCredits = async (userId, amount, type, description, referenceId = null, referenceType = null) => {
-  // First, update the user's credit balance
-  const updateQuery = {
-    text: `
-      UPDATE users 
-      SET credits = credits + $1 
-      WHERE id = $2 
-      RETURNING credits
-    `,
-    values: [amount, userId]
-  };
+  const client = await db.pool.connect();
   
-  const userResult = await db.query(updateQuery);
-  
-  if (userResult.rows.length === 0) {
-    throw new Error(`User with ID ${userId} not found`);
+  try {
+    await client.query('BEGIN');
+    
+    // First, update the user's credit balance
+    const updateQuery = {
+      text: `
+        UPDATE users 
+        SET credits = credits + $1 
+        WHERE id = $2 
+        RETURNING credits
+      `,
+      values: [amount, userId]
+    };
+    
+    const userResult = await client.query(updateQuery);
+    
+    if (userResult.rows.length === 0) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+    
+    // Record the transaction
+    const transactionQuery = {
+      text: `
+        INSERT INTO credit_transactions 
+        (user_id, amount, type, description, reference_id, reference_type) 
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+      `,
+      values: [userId, amount, type, description, referenceId, referenceType]
+    };
+    
+    const transactionResult = await client.query(transactionQuery);
+    
+    await client.query('COMMIT');
+    
+    return {
+      currentCredits: userResult.rows[0].credits,
+      transaction: transactionResult.rows[0]
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error in addCredits:', error);
+    throw error;
+  } finally {
+    client.release();
   }
-  
-  // Record the transaction
-  const transactionQuery = {
-    text: `
-      INSERT INTO credit_transactions 
-      (user_id, amount, type, description, reference_id, reference_type) 
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `,
-    values: [userId, amount, type, description, referenceId, referenceType]
-  };
-  
-  const transactionResult = await db.query(transactionQuery);
-  
-  return {
-    currentCredits: userResult.rows[0].credits,
-    transaction: transactionResult.rows[0]
-  };
 };
 
 // Get user's credit balance

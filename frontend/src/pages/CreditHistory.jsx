@@ -1,6 +1,6 @@
 // src/pages/CreditHistory.jsx
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   FaCoins,
   FaArrowRight,
@@ -11,52 +11,62 @@ import {
   FaTicketAlt,
   FaExchangeAlt,
   FaShoppingCart,
-  FaUserCog
-} from 'react-icons/fa';
-import api from '../services/api';
-import { useAuth } from '../hooks/useAuth';
+  FaUserCog,
+} from "react-icons/fa";
+import api from "../services/api";
 
 const CreditHistory = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
+  const [currentBalance, setCurrentBalance] = useState(0);
   const [pagination, setPagination] = useState({
     hasMore: false,
     total: 0,
-    totalPages: 0
+    totalPages: 0,
   });
-  const { user } = useAuth();
 
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/credits/history?page=${page}&limit=10`);
-        setTransactions(response.data.transactions);
-        setPagination(response.data.pagination);
+
+        // Fetch both transactions and current balance
+        const [transactionsResponse, balanceResponse] = await Promise.all([
+          api.get(`/credits/history?page=${page}&limit=10`),
+          api.get("/credits"),
+        ]);
+
+        setTransactions(transactionsResponse.data.transactions);
+        setPagination(transactionsResponse.data.pagination);
+        setCurrentBalance(balanceResponse.data.credits);
         setError(null);
       } catch (err) {
-        console.error('Error fetching credit history:', err);
-        setError('Failed to load credit history. Please try again.');
+        console.error("Error fetching credit data:", err);
+        setError("Failed to load credit history. Please try again.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTransactions();
+    fetchData();
   }, [page]);
 
   const getTransactionIcon = (type, isAddition) => {
     switch (type) {
-      case 'purchase':
+      case "purchase":
         return <FaShoppingCart className="text-blue-500" />;
-      case 'exchange_refund':
+      case "exchange_refund":
         return <FaPlus className="text-green-500" />;
-      case 'exchange_payment':
+      case "exchange_payment":
         return <FaMinus className="text-red-500" />;
-      case 'admin_adjustment':
-        return <FaUserCog className={isAddition ? "text-green-500" : "text-red-500"} />;
+      case "admin_adjustment":
+        return (
+          <FaUserCog
+            className={isAddition ? "text-green-500" : "text-red-500"}
+          />
+        );
       default:
         return isAddition ? (
           <FaPlus className="text-green-500" />
@@ -83,7 +93,9 @@ const CreditHistory = () => {
           </div>
           <div>
             <div className="text-sm text-gray-600">Current Balance</div>
-            <div className="text-2xl font-bold">{parseFloat(user?.credits || 0).toFixed(2)} Credits</div>
+            <div className="text-2xl font-bold">
+              {parseFloat(currentBalance || 0).toFixed(2)} Credits
+            </div>
           </div>
         </div>
       </div>
@@ -130,27 +142,40 @@ const CreditHistory = () => {
               <li key={transaction.id} className="p-6 hover:bg-gray-50">
                 <div className="flex items-start">
                   <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mr-4 flex-shrink-0">
-                    {getTransactionIcon(transaction.type, transaction.isAddition)}
+                    {getTransactionIcon(
+                      transaction.type,
+                      transaction.isAddition
+                    )}
                   </div>
                   <div className="flex-grow">
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-medium">{transaction.typeLabel}</div>
+                        <div className="font-medium">
+                          {transaction.typeLabel}
+                        </div>
                         <div className="text-sm text-gray-600">
                           {transaction.actionText}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {transaction.formattedDate} at {transaction.formattedTime}
+                          {transaction.formattedDate} at{" "}
+                          {transaction.formattedTime}
                         </div>
                       </div>
-                      <div className={`font-bold ${transaction.isAddition ? 'text-green-600' : 'text-red-600'}`}>
-                        {transaction.isAddition ? '+' : '-'}{Math.abs(parseFloat(transaction.amount)).toFixed(2)}
+                      <div
+                        className={`font-bold ${
+                          transaction.isAddition
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {transaction.isAddition ? "+" : "-"}
+                        {Math.abs(parseFloat(transaction.amount)).toFixed(2)}
                       </div>
                     </div>
-                    
-                    {transaction.reference_type === 'ticket_exchange' && (
+
+                    {transaction.reference_type === "ticket_exchange" && (
                       <div className="mt-2 text-sm">
-                        <Link 
+                        <Link
                           to={`/profile/tickets/${transaction.reference_id}`}
                           className="flex items-center text-purple-600 hover:text-purple-800"
                         >
@@ -160,19 +185,20 @@ const CreditHistory = () => {
                         </Link>
                       </div>
                     )}
-                    
-                    {transaction.reference_type === 'payment' && (
-                      <div className="mt-2 text-sm">
-                        <Link 
-                          to={`/profile/purchases/${transaction.reference_id}`}
-                          className="flex items-center text-purple-600 hover:text-purple-800"
-                        >
-                          <FaShoppingCart className="mr-1" />
-                          <span>View Purchase</span>
-                          <FaArrowRight className="ml-1 text-xs" />
-                        </Link>
-                      </div>
-                    )}
+
+                    {transaction.reference_type === "payment" &&
+                      transaction.purchase_id && (
+                        <div className="mt-2 text-sm">
+                          <Link
+                            to={`/profile/purchases/${transaction.purchase_id}`}
+                            className="flex items-center text-purple-600 hover:text-purple-800"
+                          >
+                            <FaShoppingCart className="mr-1" />
+                            <span>View Purchase</span>
+                            <FaArrowRight className="ml-1 text-xs" />
+                          </Link>
+                        </div>
+                      )}
                   </div>
                 </div>
               </li>
@@ -188,8 +214,8 @@ const CreditHistory = () => {
               disabled={page === 1}
               className={`px-4 py-2 flex items-center ${
                 page === 1
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'text-purple-600 hover:text-purple-800'
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-purple-600 hover:text-purple-800"
               }`}
             >
               <FaArrowLeft className="mr-2" /> Previous
@@ -204,8 +230,8 @@ const CreditHistory = () => {
               disabled={!pagination.hasMore}
               className={`px-4 py-2 flex items-center ${
                 !pagination.hasMore
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'text-purple-600 hover:text-purple-800'
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "text-purple-600 hover:text-purple-800"
               }`}
             >
               Next <FaArrowRight className="ml-2" />

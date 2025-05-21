@@ -7,17 +7,16 @@ export const findById = async (id) => {
     text: `
       SELECT e.*, 
              c.name as category_name, c.slug as category_slug,
-             s.name as subcategory_name, s.slug as subcategory_slug,
-             u.name as organizer_name
+             s.name as subcategory_name, s.slug as subcategory_slug
       FROM events e
       LEFT JOIN categories c ON e.category_id = c.id
       LEFT JOIN subcategories s ON e.subcategory_id = s.id
-      LEFT JOIN users u ON e.organizer_id = u.id
       WHERE e.id = $1 AND e.status IN ('active', 'rescheduled')
     `,
     values: [id],
   };
 
+  // Rest of the function remains the same
   try {
     const result = await db.query(query);
     return result.rows[0];

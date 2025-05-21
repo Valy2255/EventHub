@@ -1,6 +1,7 @@
 // backend/controllers/creditController.js
 import * as User from '../models/User.js';
 import * as db from '../config/db.js';
+import * as Purchase from '../models/Purchase.js';
 
 // Get user's credit balance
 export const getCreditBalance = async (req, res) => {
@@ -26,7 +27,7 @@ export const getCreditHistory = async (req, res) => {
     const transactions = await User.getCreditTransactions(userId, limit, offset);
     
     // Format and enrich transaction data
-    const formattedTransactions = transactions.map(transaction => {
+    const formattedTransactions = await Promise.all(transactions.map(async transaction => {
       let actionText = '';
       let typeLabel = '';
       
@@ -52,7 +53,22 @@ export const getCreditHistory = async (req, res) => {
           typeLabel = 'Transaction';
       }
       
-      return {
+      // Only try to find purchase_id if it's a payment reference
+      let purchase_id = undefined;
+      if (transaction.reference_type === 'payment' && transaction.reference_id) {
+        try {
+          // Look up the purchase associated with this payment
+          const purchase = await Purchase.findByPaymentId(transaction.reference_id);
+          if (purchase) {
+            purchase_id = purchase.id;
+          }
+        } catch (err) {
+          console.error('Error finding purchase by payment ID:', err);
+          // Continue even if lookup fails
+        }
+      }
+      
+      const result = {
         ...transaction,
         formattedDate: new Date(transaction.created_at).toLocaleDateString(),
         formattedTime: new Date(transaction.created_at).toLocaleTimeString(),
@@ -60,7 +76,14 @@ export const getCreditHistory = async (req, res) => {
         typeLabel,
         isAddition: transaction.amount > 0
       };
-    });
+      
+      // Only add purchase_id if we found one
+      if (purchase_id !== undefined) {
+        result.purchase_id = purchase_id;
+      }
+      
+      return result;
+    }));
     
     // Get total transactions count for pagination info
     const countQuery = {

@@ -15,7 +15,7 @@ import {
   FaTicketAlt,
   FaQuestion,
   FaFileAlt,
-  FaComments
+  FaComments,
 } from "react-icons/fa";
 import { useState, useEffect } from "react";
 import api from "../../services/api";
@@ -40,9 +40,6 @@ const AdminLayout = () => {
         // Get dashboard stats
         const dashboardResponse = await api.get("/admin/dashboard/stats");
 
-        // Get refunds count
-        const refundsResponse = await api.get("/admin/refunds");
-
         // Get subcategories count
         const subcategoriesResponse = await api.get("/admin/subcategories");
 
@@ -50,7 +47,7 @@ const AdminLayout = () => {
           events: dashboardResponse.data.stats?.events || 0,
           users: dashboardResponse.data.stats?.users || 0,
           categories: dashboardResponse.data.stats?.categories || 0,
-          pendingRefunds: refundsResponse.data.count || 0,
+          pendingRefunds: dashboardResponse.data.stats?.pendingRefunds || 0, // Use from stats directly
           subcategories:
             (subcategoriesResponse.data.subcategories || []).length || 0,
         });
@@ -111,7 +108,7 @@ const AdminLayout = () => {
       label: "Live Chat",
       icon: <FaComments />,
       badge: unreadCount > 0 ? unreadCount : null,
-      badgeColor: "bg-red-500" // Highlight unread messages with red badge
+      badgeColor: "bg-red-500", // Highlight unread messages with red badge
     },
     {
       path: "/admin/refunds",
@@ -159,7 +156,7 @@ const AdminLayout = () => {
           {/* Right side navigation */}
           <div className="flex items-center space-x-4">
             {unreadCount > 0 && (
-              <Link 
+              <Link
                 to="/admin/chat"
                 className="relative text-white hover:text-purple-200 flex items-center"
               >
@@ -208,7 +205,10 @@ const AdminLayout = () => {
                 {item.badge && (
                   <span
                     className={`text-white text-xs font-medium py-0.5 px-2 rounded-full ${
-                      item.badgeColor || (item.path === "/admin/refunds" ? "bg-red-500" : "bg-blue-500")
+                      item.badgeColor ||
+                      (item.path === "/admin/refunds"
+                        ? "bg-red-500"
+                        : "bg-blue-500")
                     }`}
                   >
                     {item.badge}
@@ -246,7 +246,10 @@ const AdminLayout = () => {
                     {item.badge && (
                       <span
                         className={`text-white text-xs font-medium py-0.5 px-2 rounded-full ${
-                          item.badgeColor || (item.path === "/admin/refunds" ? "bg-red-500" : "bg-blue-500")
+                          item.badgeColor ||
+                          (item.path === "/admin/refunds"
+                            ? "bg-red-500"
+                            : "bg-blue-500")
                         }`}
                       >
                         {item.badge}

@@ -105,11 +105,19 @@ export const getDashboardStats = async (req, res, next) => {
       text: 'SELECT COUNT(*) FROM categories'
     };
     
-    const [usersResult, eventsResult, ticketsResult, categoriesResult] = await Promise.all([
+    // Number of pending refunds (tickets with status 'cancelled' and refund_status 'requested' or null)
+    const pendingRefundsQuery = {
+      text: `SELECT COUNT(*) FROM tickets 
+             WHERE status = 'cancelled' 
+             AND (refund_status = 'requested' OR refund_status IS NULL)`
+    };
+    
+    const [usersResult, eventsResult, ticketsResult, categoriesResult, pendingRefundsResult] = await Promise.all([
       db.query(usersQuery),
       db.query(eventsQuery),
       db.query(ticketsQuery),
-      db.query(categoriesQuery)
+      db.query(categoriesQuery),
+      db.query(pendingRefundsQuery)
     ]);
     
     res.json({
@@ -117,7 +125,8 @@ export const getDashboardStats = async (req, res, next) => {
         users: parseInt(usersResult.rows[0].count),
         events: parseInt(eventsResult.rows[0].count),
         tickets: parseInt(ticketsResult.rows[0].count),
-        categories: parseInt(categoriesResult.rows[0].count)
+        categories: parseInt(categoriesResult.rows[0].count),
+        pendingRefunds: parseInt(pendingRefundsResult.rows[0].count)
       }
     });
   } catch (error) {
@@ -154,20 +163,175 @@ export const approveRefund = async (req, res, next) => {
       });
     }
     
-    const ticket = await Ticket.updateRefundStatus(id, status);
+    // Use a transaction for refund processing
+    const client = await db.pool.connect();
     
-    if (!ticket) {
-      return res.status(404).json({
-        success: false,
-        error: 'Ticket not found'
+    try {
+      await client.query('BEGIN');
+      
+      // Get the ticket with event and purchase details
+      const ticketResult = await client.query(
+        `SELECT t.*, e.name as event_name, e.id as event_id, 
+                p.id as purchase_id, p.user_id, tt.price 
+         FROM tickets t
+         JOIN events e ON t.event_id = e.id
+         JOIN purchases p ON t.purchase_id = p.id
+         JOIN ticket_types tt ON t.ticket_type_id = tt.id
+         WHERE t.id = $1`,
+        [id]
+      );
+      
+      if (ticketResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({
+          success: false,
+          error: 'Ticket not found'
+        });
+      }
+      
+      const ticket = ticketResult.rows[0];
+      
+      // Update ticket refund status
+      await client.query(
+        `UPDATE tickets SET refund_status = $1 WHERE id = $2`,
+        [status, id]
+      );
+      
+      // If completing the refund, do full refund processing
+      if (status === 'completed') {
+        // Update ticket status to 'refunded'
+        await client.query(
+          `UPDATE tickets SET status = 'refunded' WHERE id = $1`,
+          [id]
+        );
+        
+        // Get payment information
+        const paymentResult = await client.query(
+          `SELECT p.* FROM payments p
+           JOIN payment_tickets pt ON pt.payment_id = p.id
+           WHERE pt.ticket_id = $1 LIMIT 1`,
+          [id]
+        );
+        
+        // If no direct payment association found, try to find through purchase
+        let payment = null;
+        if (paymentResult.rows.length > 0) {
+          payment = paymentResult.rows[0];
+        } else {
+          // Try to find through purchase
+          const purchasePaymentResult = await client.query(
+            `SELECT p.* FROM payments p
+             WHERE p.purchase_id = $1 LIMIT 1`,
+            [ticket.purchase_id]
+          );
+          
+          if (purchasePaymentResult.rows.length > 0) {
+            payment = purchasePaymentResult.rows[0];
+          }
+        }
+        
+        // If payment found, create refund record
+        if (payment) {
+          const refundAmount = parseFloat(ticket.price || 0);
+          
+          // Get payment method if available (for card payments)
+          let paymentMethodId = null;
+          
+          if (payment.payment_method === 'card') {
+            const paymentMethodResult = await client.query(
+              `SELECT id FROM payment_methods 
+               WHERE user_id = $1 AND is_default = true 
+               ORDER BY created_at DESC LIMIT 1`,
+              [ticket.user_id]
+            );
+            
+            if (paymentMethodResult.rows.length > 0) {
+              paymentMethodId = paymentMethodResult.rows[0].id;
+            }
+          }
+          
+          // Create refund record
+          const refundData = {
+            purchase_id: ticket.purchase_id,
+            payment_id: payment.id,
+            payment_method_id: paymentMethodId,
+            payment_method_type: payment.payment_method || 'card', // Default to card if missing
+            amount: refundAmount,
+            status: 'completed',
+            reference_id: `ref_${Date.now()}_${ticket.id}`,
+            notes: `Refund for ticket ID: ${ticket.id} to event: ${ticket.event_name}`
+          };
+          
+          const insertResult = await client.query(
+            `INSERT INTO refunds
+             (purchase_id, payment_id, payment_method_id, payment_method_type, amount, status, reference_id, notes, completed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+             RETURNING id`,
+            [
+              refundData.purchase_id,
+              refundData.payment_id,
+              refundData.payment_method_id,
+              refundData.payment_method_type,
+              refundData.amount,
+              refundData.status,
+              refundData.reference_id,
+              refundData.notes
+            ]
+          );
+          
+          const refundId = insertResult.rows[0].id;
+          
+          // Process refund based on payment method
+          if (payment.payment_method === 'credits') {
+            // Refund to user credits
+            await client.query(
+              `INSERT INTO credit_transactions
+               (user_id, amount, type, description, reference_id, reference_type)
+               VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                ticket.user_id,
+                refundAmount,
+                'refund',
+                `Refund for ticket to: ${ticket.event_name}`,
+                refundId,
+                'refund'
+              ]
+            );
+          } else if (payment.payment_method === 'card') {
+            // In production, you'd call your payment processor API here
+            console.log(`Simulating card refund of $${refundAmount} for ticket ${ticket.id}`);
+          }
+          
+          console.log(`Refund record created with ID: ${refundId}`);
+        } else {
+          console.warn(`No payment found for ticket ${id}, skipping refund record creation`);
+        }
+      }
+      
+      await client.query('COMMIT');
+      
+      // Get updated ticket data for response
+      const updatedTicketResult = await client.query(
+        `SELECT t.*, e.name as event_name 
+         FROM tickets t
+         JOIN events e ON t.event_id = e.id
+         WHERE t.id = $1`,
+        [id]
+      );
+      
+      const updatedTicket = updatedTicketResult.rows[0];
+      
+      res.status(200).json({
+        success: true,
+        data: updatedTicket,
+        message: `Refund status updated to ${status}`
       });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    
-    res.status(200).json({
-      success: true,
-      data: ticket,
-      message: `Refund status updated to ${status}`
-    });
   } catch (error) {
     console.error('Error updating refund status:', error);
     next(error);
@@ -709,9 +873,9 @@ export const triggerRefundProcessing = async (req, res, next) => {
     const { daysThreshold } = req.body;
     
     // Use default of 5 days if not specified
-    const threshold = daysThreshold ? parseInt(daysThreshold, 10) : 5;
+    const threshold = parseInt(daysThreshold ?? 5, 10);
     
-    if (isNaN(threshold) || threshold < 1) {
+    if (isNaN(threshold) || threshold < 0) {
       return res.status(400).json({
         success: false,
         error: 'Days threshold must be a positive number'
