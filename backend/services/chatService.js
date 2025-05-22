@@ -122,9 +122,10 @@ export const getActiveConversations = async (clientId = null) => {
     if (clientId) {
       // Get conversations for a specific client
       query = `
-        SELECT 
+        SELECT
           c.id, c.client_id, c.status, c.created_at, c.updated_at,
           u.name as client_name, u.email as client_email,
+          u.profile_image as client_profile_image, -- <<< ADD THIS LINE
           (SELECT COUNT(*) FROM public.chat_messages WHERE conversation_id = c.id AND sender_type = 'admin' AND client_read = false) as unread_count,
           (SELECT message FROM public.chat_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
         FROM public.chat_conversations c
@@ -136,9 +137,10 @@ export const getActiveConversations = async (clientId = null) => {
     } else {
       // Get all active conversations (for admin)
       query = `
-        SELECT 
+        SELECT
           c.id, c.client_id, c.status, c.created_at, c.updated_at,
           u.name as client_name, u.email as client_email,
+          u.profile_image as client_profile_image, -- <<< ADD THIS LINE
           (SELECT COUNT(*) FROM public.chat_messages WHERE conversation_id = c.id AND sender_type = 'client' AND admin_read = false) as unread_count,
           (SELECT message FROM public.chat_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
         FROM public.chat_conversations c
@@ -165,7 +167,8 @@ export const getConversationById = async (conversationId) => {
   try {
     const result = await pool.query(
       `SELECT cc.id, cc.client_id, cc.status, cc.created_at, cc.updated_at, cc.closed_at,
-              u.name as client_name, u.email as client_email
+              u.name as client_name, u.email as client_email,
+              u.profile_image as client_profile_image -- <<< ADD THIS LINE
        FROM chat_conversations cc
        JOIN users u ON cc.client_id = u.id
        WHERE cc.id = $1`,

@@ -1,4 +1,4 @@
-// src/context/ChatContext.jsx
+// src/context/ChatContext.jsx - Fixed typing and seen features
 import { createContext, useState, useEffect, useCallback, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useAuth } from "../hooks/useAuth";
@@ -10,7 +10,7 @@ export const ChatProvider = ({ children }) => {
   const { user } = useAuth();
   const { connected, emitEvent, onEvent } = useSocket();
 
-  // ─── state ──────────────────────────────────────────────────────────
+  // State management
   const [activeConversation, setActiveConversation] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -20,10 +20,18 @@ export const ChatProvider = ({ children }) => {
   const [chatOpen, setChatOpen] = useState(false);
   const [adminOnline, setAdminOnline] = useState(false);
 
-  // ─── live refs to avoid stale-closure bugs ──────────────────────────
+  // Feature states
+  const [typingUsers, setTypingUsers] = useState({}); // { conversationId: 'sender_type' }
+  const [clientProfileForActiveChat, setClientProfileForActiveChat] =
+    useState(null);
+  const [adminProfileForActiveChat, setAdminProfileForActiveChat] =
+    useState(null);
+
+  // Refs to avoid stale closures
   const activeConvRef = useRef(activeConversation);
   const chatOpenRef = useRef(chatOpen);
   const messagesRef = useRef(messages);
+  const userRef = useRef(user);
 
   useEffect(() => {
     activeConvRef.current = activeConversation;
@@ -34,81 +42,102 @@ export const ChatProvider = ({ children }) => {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
-  // ─── mark as read & clear badge ──────────────────────────────────────
+  // Mark messages as read
   const markMessagesAsRead = useCallback(
     async (conversationId) => {
-      if (!conversationId || !user) return;
+      if (!conversationId || !userRef.current) return;
+
       try {
+        const readerType =
+          userRef.current.role === "admin" ? "admin" : "client";
+
         await api.post(`/chat/conversations/${conversationId}/read`, {
-          reader_type: user.role === "admin" ? "admin" : "client",
+          reader_type: readerType,
         });
+
+        // Emit to notify other party
+        emitEvent("read_messages", { conversationId, readerType });
+
+        // Update local state
+        if (userRef.current.role === "admin") {
+          setConversations((prev) => {
+            const updated = prev.map((c) =>
+              c.id === conversationId ? { ...c, unread_count: 0 } : c
+            );
+            setUnreadCount(
+              updated.reduce((sum, c) => sum + (c.unread_count || 0), 0)
+            );
+            return updated;
+          });
+        } else {
+          setUnreadCount(0);
+        }
       } catch (error) {
         console.error("Error marking messages as read:", error);
       }
-      if (user.role === "admin") {
-        setConversations((prev) => {
-          const updated = prev.map((c) =>
-            c.id === conversationId ? { ...c, unread_count: 0 } : c
-          );
-          setUnreadCount(
-            updated.reduce((sum, c) => sum + (c.unread_count || 0), 0)
-          );
-          return updated;
-        });
-      } else {
-        setUnreadCount(0);
-      }
     },
-    [user]
+    [emitEvent]
   );
 
-  // ─── initial + periodic fetch of admin conversations ───────────────
+  // Fetch admin conversations
   const fetchAdminConversations = useCallback(async () => {
-    if (!user || user.role !== "admin") return;
+    if (!userRef.current || userRef.current.role !== "admin") return;
+
     try {
       const { data } = await api.get("/chat/conversations");
       const convs = (data.conversations || []).map((c) => ({
         ...c,
         unread_count: Number(c.unread_count) || 0,
+        client_profile_image: c.client_profile_image,
       }));
       setConversations(convs);
       setUnreadCount(convs.reduce((sum, c) => sum + c.unread_count, 0));
-    } catch {
-      setError("Failed to load conversations");
+    } catch (err) {
+      setError("Failed to load conversations" + err.message);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (user?.role === "admin") {
+      setLoading(true);
       fetchAdminConversations();
       const iv = setInterval(fetchAdminConversations, 30000);
       return () => clearInterval(iv);
+    } else {
+      setLoading(false);
     }
   }, [user, fetchAdminConversations]);
 
-  // ─── auto-join all admin rooms for real-time events everywhere ──────
+  // Auto-join admin rooms
   useEffect(() => {
-    if (user?.role === "admin" && connected && conversations.length) {
-      conversations.forEach((c) => emitEvent("join_conversation", c.id));
+    if (
+      userRef.current?.role === "admin" &&
+      connected &&
+      conversations.length
+    ) {
+      conversations.forEach((c) => emitEvent("auto_subscribe", c.id));
     }
-  }, [user, connected, conversations, emitEvent]);
+  }, [connected, conversations, emitEvent]);
 
   // Global new_message handler
   useEffect(() => {
-    if (!connected || !user) return;
+    if (!connected || !userRef.current) return;
 
     const handleNewMessage = (m) => {
       const replacedTemp =
         m.tempId && messagesRef.current.some((x) => x.id === m.tempId);
       const isActive = activeConvRef.current === m.conversation_id;
       const isChatOpen = chatOpenRef.current;
-      const otherParty = m.sender_type !== user.role;
+      const otherParty = m.sender_type !== userRef.current.role;
 
-      // Admin side conversation updates
-      if (user.role === "admin") {
+      // Update conversations for admin
+      if (userRef.current.role === "admin") {
         setConversations((prev) =>
           prev.map((c) =>
             c.id === m.conversation_id
@@ -124,23 +153,16 @@ export const ChatProvider = ({ children }) => {
               : c
           )
         );
-
-        // Update global admin badge
         if (otherParty && (!isActive || !isChatOpen)) {
           setUnreadCount((n) => n + 1);
         }
-      }
-      // Client side unread count
-      else {
-        // Increment client unread count ONLY if:
-        // 1. Message is from admin (otherParty) AND
-        // 2. Either chat is closed OR different conversation is active
+      } else {
         if (otherParty && (!isChatOpen || !isActive)) {
           setUnreadCount((prev) => prev + 1);
         }
       }
 
-      // Update message panel if active
+      // Update messages if active conversation
       if (isActive) {
         setMessages((prev) =>
           replacedTemp
@@ -156,11 +178,14 @@ export const ChatProvider = ({ children }) => {
           markMessagesAsRead(m.conversation_id);
         }
       }
+
+      // Clear typing indicator for sender
+      setTypingUsers((prev) => ({ ...prev, [m.conversation_id]: null }));
     };
 
     const off = onEvent("new_message", handleNewMessage);
     return off;
-  }, [connected, user, onEvent, markMessagesAsRead]);
+  }, [connected, onEvent, markMessagesAsRead]);
 
   // Per-conversation listeners
   useEffect(() => {
@@ -168,163 +193,282 @@ export const ChatProvider = ({ children }) => {
 
     const historyHandler = ({ messages: hist, conversationId }) => {
       setMessages(hist || []);
-      if (chatOpen && conversationId) {
+      if (chatOpenRef.current && conversationId) {
         markMessagesAsRead(conversationId);
       }
     };
-    const adminJoinedHandler = () => setAdminOnline(true);
+
+    const adminJoinedHandler = ({ admin_profile_image }) => {
+      setAdminOnline(true);
+      setAdminProfileForActiveChat(admin_profile_image);
+    };
+
     const closedHandler = () => {
-      if (user?.role !== "admin") {
+      if (userRef.current?.role !== "admin") {
         setActiveConversation(null);
         setChatOpen(false);
         setMessages([]);
       }
+      setClientProfileForActiveChat(null);
+      setAdminProfileForActiveChat(null);
     };
 
-    const off1 = onEvent("conversation_history", historyHandler);
-    const off2 = onEvent("admin_joined", adminJoinedHandler);
-    const off3 = onEvent("conversation_closed", closedHandler);
+    // FIXED: Typing listeners
+    const typingHandler = ({ conversationId: incomingConvId, senderType }) => {
+      if (
+        activeConvRef.current === incomingConvId &&
+        senderType !== userRef.current?.role
+      ) {
+        setTypingUsers((prev) => ({ ...prev, [incomingConvId]: senderType }));
+      }
+    };
+
+    const stopTypingHandler = ({
+      conversationId: incomingConvId,
+      senderType,
+    }) => {
+      if (
+        activeConvRef.current === incomingConvId &&
+        senderType !== userRef.current?.role
+      ) {
+        setTypingUsers((prev) => ({ ...prev, [incomingConvId]: null }));
+      }
+    };
+
+    // FIXED: Read receipt listener
+    const messagesReadHandler = ({ conversationId, readerType }) => {
+    // Only update the convo we're viewing
+    if (activeConvRef.current !== conversationId) return;
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        // Skip the reader’s own messages
+        if (msg.sender_type === readerType) return msg;
+
+        // Reader is ADMIN  → mark client messages as admin_read
+        if (readerType === "admin" && !msg.admin_read) {
+          return { ...msg, admin_read: true };
+        }
+
+        // Reader is CLIENT → mark admin messages as client_read
+        if (readerType === "client" && !msg.client_read) {
+          return { ...msg, client_read: true };
+        }
+        return msg;
+      })
+    );
+  };
+
+    const offHistory = onEvent("conversation_history", historyHandler);
+    const offAdminJoined = onEvent("admin_joined", adminJoinedHandler);
+    const offClosed = onEvent("conversation_closed", closedHandler);
+    const offTyping = onEvent("typing", typingHandler);
+    const offStopTyping = onEvent("stop_typing", stopTypingHandler);
+    const offMessagesRead = onEvent("messages_read", messagesReadHandler);
 
     return () => {
-      off1();
-      off2();
-      off3();
+      offHistory();
+      offAdminJoined();
+      offClosed();
+      offTyping();
+      offStopTyping();
+      offMessagesRead();
       setAdminOnline(false);
+      setAdminProfileForActiveChat(null);
+      setTypingUsers((prev) => ({ ...prev, [activeConversation]: null }));
     };
-  }, [
-    connected,
-    activeConversation,
-    chatOpen,
-    user,
-    onEvent,
-    markMessagesAsRead,
-  ]);
+  }, [connected, activeConversation, onEvent, markMessagesAsRead]);
 
-  // conversation_started
-   useEffect(() => {
-    if (!connected || !user) return;
+  // Handle conversation_started
+  useEffect(() => {
+    if (!connected || !userRef.current) return;
 
-    const handler = async ({ conversationId, message, client_name, client_email }) => {
-      // --- 1) Add it to your sidebar immediately ---
-      if (user.role === "admin") {
-        setConversations(prev => {
-          if (prev.some(c => c.id === conversationId)) return prev;
-          return [{
-            id:            conversationId,
-            last_message:  typeof message === "string" ? message : message.message,
-            updated_at:    new Date().toISOString(),
-            unread_count:  1,
-            client_name,
-            client_email,
-          }, ...prev];
+    const handler = async ({
+      conversationId,
+      message,
+      client_name,
+      client_email,
+      client_profile_image,
+    }) => {
+      if (userRef.current.role === "admin") {
+        setConversations((prev) => {
+          if (prev.some((c) => c.id === conversationId)) return prev;
+          return [
+            {
+              id: conversationId,
+              last_message:
+                typeof message === "string" ? message : message.message,
+              updated_at: message.created_at || new Date().toISOString(),
+              unread_count: 1,
+              client_name,
+              client_email,
+              client_profile_image,
+            },
+            ...prev,
+          ];
         });
-        setUnreadCount(n => n + 1);
-
-        // --- 2) Join that new room, so you get all its future events ---
+        setUnreadCount((n) => n + 1);
         emitEvent("join_conversation", conversationId);
+      } else {
+        setActiveConversation(conversationId);
+        setMessages([
+          typeof message === "string"
+            ? {
+                id: `temp-start-${Date.now()}`,
+                message,
+                sender_type: "client",
+                created_at: new Date().toISOString(),
+              }
+            : message,
+        ]);
+        setClientProfileForActiveChat(userRef.current?.profile_image || null);
       }
-
-      // --- 3) Switch the UI into that conversation and show the first message ---
-      setActiveConversation(conversationId);
-      setMessages([ typeof message === "string" ? { message } : message ]);
-
-      // --- 4) (Optional) if you want to fetch the full list—uncomment this)
-      // await fetchAdminConversations();
     };
 
     const off = onEvent("conversation_started", handler);
     return off;
-  }, [connected, user, emitEvent, onEvent]);
+  }, [connected, emitEvent, onEvent]);
 
-  // ─── **new**: HTTP-fetch full history immediately on convo switch
+  // Fetch conversation data when switching
   useEffect(() => {
-    if (!activeConversation) return;
-    api
-      .get(`/chat/conversations/${activeConversation}/messages`)
-      .then((res) => {
-        const msgs = res.data.messages || [];
+    if (!activeConversation || !userRef.current) {
+      setMessages([]);
+      setClientProfileForActiveChat(null);
+      if (userRef.current?.role === "admin") setAdminProfileForActiveChat(null);
+      return;
+    }
+
+    const fetchConversationData = async () => {
+      try {
+        const convDetailsRes = await api.get(
+          `/chat/conversations/${activeConversation}`
+        );
+        const convData = convDetailsRes.data.conversation;
+        if (convData) {
+          setClientProfileForActiveChat(convData.client_profile_image);
+        }
+
+        const messagesRes = await api.get(
+          `/chat/conversations/${activeConversation}/messages`
+        );
+        const msgs = messagesRes.data.messages || [];
         setMessages(msgs);
 
-        // clear unread / update sidebar entry right away
-        setConversations((prev) => {
-          const updated = prev.map((c) => {
-            if (c.id !== activeConversation) return c;
-            const last = msgs[msgs.length - 1];
-            return {
-              ...c,
-              last_message: last ? last.message : c.last_message,
-              updated_at: last ? last.created_at : c.updated_at,
-              unread_count: 0,
-            };
+        if (userRef.current?.role === "admin") {
+          markMessagesAsRead(activeConversation);
+          setConversations((prev) => {
+            const updated = prev.map((c) => {
+              if (c.id !== activeConversation) return c;
+              const last = msgs[msgs.length - 1];
+              return {
+                ...c,
+                last_message: last ? last.message : c.last_message,
+                updated_at: last ? last.created_at : c.updated_at,
+                unread_count: 0,
+                client_profile_image:
+                  convData?.client_profile_image || c.client_profile_image,
+              };
+            });
+            setUnreadCount(
+              updated.reduce((s, c) => s + (c.unread_count || 0), 0)
+            );
+            return updated;
           });
-          setUnreadCount(
-            updated.reduce((s, c) => s + (c.unread_count || 0), 0)
-          );
-          return updated;
-        });
-      })
-      .catch(console.error);
-  }, [activeConversation]);
+        } else {
+          if (chatOpenRef.current) markMessagesAsRead(activeConversation);
+        }
+      } catch (err) {
+        console.error("Error fetching conversation data:", err);
+      }
+    };
 
-  // ─── fetch client conversation & unread ──────────────────────────────
+    fetchConversationData();
+  }, [activeConversation, markMessagesAsRead]);
+
+  // Fetch client conversations
   useEffect(() => {
-    if (!user || user.role === "admin" || !connected) return;
+    if (!userRef.current || userRef.current.role === "admin" || !connected)
+      return;
+
     (async () => {
+      setLoading(true);
       try {
         const { data } = await api.get("/chat/my-conversations");
         const convs = data.conversations || [];
-        if (convs.length) {
+        if (convs.length > 0 && convs[0].id) {
           setActiveConversation(convs[0].id);
-          if (chatOpen) {
+          setClientProfileForActiveChat(
+            convs[0].client_profile_image || userRef.current?.profile_image
+          );
+          if (chatOpenRef.current) {
             emitEvent("join_conversation", convs[0].id);
-            const { data: u } = await api.get(
-              `/chat/conversations/${convs[0].id}/unread`
-            );
-            setUnreadCount(u.count || 0);
+            markMessagesAsRead(convs[0].id);
           }
+          const unreadData = await api.get("/chat/unread-count");
+          setUnreadCount(unreadData.data.count || 0);
+        } else {
+          setActiveConversation(null);
+          setUnreadCount(0);
         }
-      } catch {
-        /* ignore */
+      } catch (err) {
+        console.error("Failed to load client conversation info", err);
+        setError("Failed to load chat info");
       } finally {
         setLoading(false);
       }
     })();
-  }, [user, connected, chatOpen, emitEvent]);
+  }, [connected, markMessagesAsRead, emitEvent]);
 
-  // ─── background unread-count updater ─────────────────────────────────
+  // Background unread count updater
   useEffect(() => {
-    if (!user || !connected) return;
+    if (!userRef.current || !connected) return;
+
     const update = async () => {
       try {
         const { data } = await api.get("/chat/unread-count");
-        setUnreadCount(data.count ?? unreadCount);
-      } catch {
-        if (user.role === "admin") {
+        setUnreadCount((prevCount) =>
+          data.count !== undefined && data.count !== prevCount
+            ? data.count
+            : prevCount
+        );
+      } catch (err) {
+        console.warn("Could not update total unread count:", err);
+        if (userRef.current.role === "admin") {
           setUnreadCount(
             conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0)
           );
         }
       }
     };
+
     update();
     const iv = setInterval(update, 60000);
     return () => clearInterval(iv);
-  }, [user, connected, conversations, unreadCount]);
+  }, [connected, conversations]);
 
-  // ─── public actions ──────────────────────────────────────────────────
+  // Public actions
   const joinConversation = useCallback(
     (id) => {
-      if (!connected) return;
+      if (!connected || !id) return;
+
+      if (
+        userRef.current?.role !== "admin" &&
+        activeConvRef.current &&
+        activeConvRef.current !== id
+      ) {
+        emitEvent("leave_conversation", activeConvRef.current);
+      }
+
       emitEvent("join_conversation", id);
       setActiveConversation(id);
-      markMessagesAsRead(id);
     },
-    [connected, emitEvent, markMessagesAsRead]
+    [connected, emitEvent]
   );
 
   const startConversation = useCallback(
     (msg) => {
-      if (!connected) return;
+      if (!connected || !userRef.current || userRef.current.role === "admin")
+        return;
       emitEvent("start_conversation", msg);
       setChatOpen(true);
     },
@@ -333,38 +477,65 @@ export const ChatProvider = ({ children }) => {
 
   const sendMessage = useCallback(
     (content, tempId = null) => {
-      if (!connected || !activeConversation) return false;
+      if (!connected || !activeConvRef.current) return false;
       emitEvent("send_message", {
-        conversationId: activeConversation,
+        conversationId: activeConvRef.current,
         content,
         tempId,
       });
+      if (userRef.current) {
+        emitEvent("stop_typing", { conversationId: activeConvRef.current });
+      }
       return true;
     },
-    [connected, activeConversation, emitEvent]
+    [connected, emitEvent]
   );
 
   const closeConversation = useCallback(() => {
-    if (!connected || !activeConversation || user?.role !== "admin") return;
-    emitEvent("close_conversation", activeConversation);
-    setConversations((prev) => prev.filter((c) => c.id !== activeConversation));
-    setActiveConversation(null);
-    setMessages([]);
-  }, [connected, activeConversation, user, emitEvent]);
+    if (
+      !connected ||
+      !activeConvRef.current ||
+      userRef.current?.role !== "admin"
+    )
+      return;
+    emitEvent("close_conversation", activeConvRef.current);
+    setConversations((prev) =>
+      prev.filter((c) => c.id !== activeConvRef.current)
+    );
+    if (activeConvRef.current === activeConversation) {
+      setActiveConversation(null);
+      setMessages([]);
+      setClientProfileForActiveChat(null);
+      setAdminProfileForActiveChat(null);
+    }
+  }, [connected, activeConversation, emitEvent]);
 
   const toggleChat = useCallback(() => {
-    setChatOpen((prev) => {
-      if (!prev && activeConversation && connected) {
-        emitEvent("join_conversation", activeConversation);
-        markMessagesAsRead(activeConversation);
+    setChatOpen((prevOpen) => {
+      const newOpenState = !prevOpen;
+      if (newOpenState && activeConvRef.current && connected) {
+        emitEvent("join_conversation", activeConvRef.current);
+        markMessagesAsRead(activeConvRef.current);
       }
-      return !prev;
+      return newOpenState;
     });
-  }, [activeConversation, connected, emitEvent, markMessagesAsRead]);
+  }, [connected, emitEvent, markMessagesAsRead]);
+
+  // FIXED: Typing notification functions
+  const notifyTyping = useCallback(() => {
+    if (!connected || !activeConvRef.current || !userRef.current) return;
+    emitEvent("typing", { conversationId: activeConvRef.current });
+  }, [connected, emitEvent]);
+
+  const notifyStopTyping = useCallback(() => {
+    if (!connected || !activeConvRef.current || !userRef.current) return;
+    emitEvent("stop_typing", { conversationId: activeConvRef.current });
+  }, [connected, emitEvent]);
 
   return (
     <ChatContext.Provider
       value={{
+        user,
         connected,
         activeConversation,
         conversations,
@@ -375,6 +546,11 @@ export const ChatProvider = ({ children }) => {
         error,
         chatOpen,
         adminOnline,
+        typingUsers,
+        clientProfileForActiveChat,
+        adminProfileForActiveChat,
+        notifyTyping,
+        notifyStopTyping,
         joinConversation,
         startConversation,
         sendMessage,

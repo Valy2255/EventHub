@@ -24,6 +24,7 @@ const AdminLayout = () => {
   const { user, logout } = useAuth();
   const { unreadCount } = useChat();
   const location = useLocation();
+  const isChatPage = location.pathname.startsWith("/admin/chat");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
     pendingRefunds: 0,
@@ -65,6 +66,16 @@ const AdminLayout = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = isChatPage ? "hidden" : prev;
+
+    return () => {
+      // run when layout unmounts
+      document.body.style.overflow = prev;
+    };
+  }, [isChatPage]);
 
   const navItems = [
     {
@@ -265,7 +276,11 @@ const AdminLayout = () => {
 
       {/* Main content area - padded to accommodate fixed elements */}
       <div className="pt-16 lg:pl-64">
-        <main className="p-4 min-h-screen bg-gray-100">
+        <main
+          className={`p-4 bg-gray-100 ${
+            isChatPage ? "h-[calc(100vh-4rem)] overflow-hidden" : "min-h-screen"
+          }`}
+        >
           <Outlet />
         </main>
       </div>

@@ -1,4 +1,4 @@
-// socket/socketHandlers.js
+// socket/socketHandlers.js - Fixed typing and seen features
 import jwt from "jsonwebtoken";
 import config from "../config/config.js";
 import * as User from "../models/User.js";
@@ -16,10 +16,9 @@ const onlineAdmins = new Map();
 const activeConversations = new Map();
 
 export const setupSocketHandlers = (io) => {
-  // Middleware for JWT authentication - using same approach as your passport config
+  // Middleware for JWT authentication
   io.use(async (socket, next) => {
     try {
-      // Get token from socket handshake auth
       const token = socket.handshake.auth.token;
 
       if (!token) {
@@ -28,16 +27,13 @@ export const setupSocketHandlers = (io) => {
       }
 
       try {
-        // Verify token with same secret from config
         const decoded = jwt.verify(token, config.jwt.secret);
 
-        // Match the payload structure from your jwtGenerator.js
         if (!decoded.user || !decoded.user.id) {
           console.log("Invalid token payload structure");
           return next(new Error("Authentication error: Invalid token payload"));
         }
 
-        // Find user by ID - same as in your passport.js
         const user = await User.findById(decoded.user.id);
 
         if (!user) {
@@ -45,11 +41,8 @@ export const setupSocketHandlers = (io) => {
           return next(new Error("Authentication error: User not found"));
         }
 
-        // Store user in socket for later use
         socket.user = user;
-        console.log(
-          `Socket authenticated for user: ${user.id}, role: ${user.role}`
-        );
+        console.log(`Socket authenticated for user: ${user.id}, role: ${user.role}`);
         next();
       } catch (jwtError) {
         console.error("JWT verification error:", jwtError);
@@ -57,16 +50,12 @@ export const setupSocketHandlers = (io) => {
       }
     } catch (error) {
       console.error("Socket authentication error:", error);
-      return next(
-        new Error("Authentication error: " + (error.message || "Unknown error"))
-      );
+      return next(new Error("Authentication error: " + (error.message || "Unknown error")));
     }
   });
 
   io.on("connection", (socket) => {
-    console.log(
-      `User connected: ${socket.id}, user ID: ${socket.user.id}, role: ${socket.user.role}`
-    );
+    console.log(`User connected: ${socket.id}, user ID: ${socket.user.id}, role: ${socket.user.role}`);
 
     // Handle user connection
     if (socket.user.role === "admin") {
@@ -78,7 +67,6 @@ export const setupSocketHandlers = (io) => {
         onlineAdminsCount: onlineAdmins.size,
       });
     } else {
-      // Add regular user to online users
       onlineUsers.set(socket.user.id, socket.id);
     }
 
@@ -109,6 +97,7 @@ export const setupSocketHandlers = (io) => {
           io.to(`conversation:${conversationId}`).emit("admin_joined", {
             adminId: socket.user.id,
             adminName: socket.user.name,
+            admin_profile_image: socket.user.profile_image || null,
           });
         }
 
@@ -121,13 +110,20 @@ export const setupSocketHandlers = (io) => {
       }
     });
 
+    // Auto-subscribe for admins (without leaving other rooms)
+    socket.on("auto_subscribe", (conversationId) => {
+      try {
+        socket.join(`conversation:${conversationId}`);
+      } catch (err) {
+        console.error("Error auto-subscribing to conversation:", err);
+      }
+    });
+
     // Handle starting a new conversation (client side)
     socket.on("start_conversation", async (initialMessage) => {
       try {
         if (socket.user.role === "admin") {
-          socket.emit("error", {
-            message: "Admins cannot start conversations",
-          });
+          socket.emit("error", { message: "Admins cannot start conversations" });
           return;
         }
 
@@ -141,7 +137,7 @@ export const setupSocketHandlers = (io) => {
         const message = await saveMessage({
           conversationId,
           senderId: socket.user.id,
-          senderType: "client", // Only clients can start conversations
+          senderType: "client",
           content: initialMessage,
         });
 
@@ -160,9 +156,10 @@ export const setupSocketHandlers = (io) => {
         // Notify all admins about new conversation
         io.to("admins").emit("conversation_started", {
           conversationId,
-          message, // the fully-formed message object you just saved
+          message,
           client_name: socket.user.name,
           client_email: socket.user.email,
+          client_profile_image: socket.user.profile_image || null,
         });
       } catch (error) {
         console.error("Error starting conversation:", error);
@@ -171,8 +168,6 @@ export const setupSocketHandlers = (io) => {
     });
 
     // Handle sending messages
-    // In socketHandlers.js - add acknowledgment functionality to the send_message handler
-    // Modify your send_message handler
     socket.on("send_message", async ({ conversationId, content, tempId }) => {
       try {
         const senderType = socket.user.role === "admin" ? "admin" : "client";
@@ -185,24 +180,18 @@ export const setupSocketHandlers = (io) => {
           content,
         });
 
-        // Important: Include tempId in the message object for client-side matching
+        // Include tempId for client-side matching
         const messageWithTempId = { ...message, tempId };
 
-        // Broadcast to all clients in conversation immediately
-        io.to(`conversation:${conversationId}`).emit(
-          "new_message",
-          messageWithTempId
-        );
+        // Broadcast to all clients in conversation
+        io.to(`conversation:${conversationId}`).emit("new_message", messageWithTempId);
 
-        // Also send direct confirmation to sender
+        // Send confirmation to sender
         socket.emit("message_sent", { tempId, message: messageWithTempId });
 
         // If message is from client and no admin is assigned, notify all admins
         const conversation = activeConversations.get(conversationId);
-        if (
-          senderType === "client" &&
-          (!conversation || !conversation.adminId)
-        ) {
+        if (senderType === "client" && (!conversation || !conversation.adminId)) {
           io.to("admins").emit("unassigned_message", {
             conversationId,
             clientId: socket.user.id,
@@ -222,26 +211,18 @@ export const setupSocketHandlers = (io) => {
     // Handle closing conversation
     socket.on("close_conversation", async (conversationId) => {
       try {
-        // Only admins can close conversations
         if (socket.user.role !== "admin") {
-          socket.emit("error", {
-            message: "Only admins can close conversations",
-          });
+          socket.emit("error", { message: "Only admins can close conversations" });
           return;
         }
 
-        // Update conversation status in database
         await updateConversationStatus(conversationId, "closed");
-
-        // Remove from active conversations
         activeConversations.delete(conversationId);
 
-        // Notify all users in the conversation
         io.to(`conversation:${conversationId}`).emit("conversation_closed", {
           conversationId,
         });
 
-        // Update admins about active conversations count
         io.to("admins").emit("active_conversations_update", {
           count: activeConversations.size,
         });
@@ -251,14 +232,53 @@ export const setupSocketHandlers = (io) => {
       }
     });
 
+    // FIXED: Typing indicator events
+    socket.on("typing", ({ conversationId }) => {
+      const senderType = socket.user.role === "admin" ? "admin" : "client";
+      
+      // Broadcast to others in the conversation (excluding sender)
+      socket.to(`conversation:${conversationId}`).emit("typing", {
+        conversationId,
+        senderType, // Changed from senderId to senderType
+        senderId: socket.user.id,
+      });
+    });
+
+    socket.on("stop_typing", ({ conversationId }) => {
+      const senderType = socket.user.role === "admin" ? "admin" : "client";
+      
+      // Broadcast to others in the conversation (excluding sender)
+      socket.to(`conversation:${conversationId}`).emit("stop_typing", {
+        conversationId,
+        senderType, // Changed from senderId to senderType
+        senderId: socket.user.id,
+      });
+    });
+
+    // FIXED: Read receipt events
+    socket.on("read_messages", async ({ conversationId, readerType }) => {
+      try {
+        // Mark messages as read in database
+        await markMessagesAsRead(conversationId, readerType);
+        
+        // Notify others in the conversation that messages were read
+        socket.to(`conversation:${conversationId}`).emit("messages_read", {
+          conversationId,
+          readerType,
+        });
+        
+      } catch (err) {
+        console.error("Error marking messages as read:", err);
+        socket.emit("error", { message: "Failed to mark messages as read" });
+      }
+    });
+
     // Handle disconnect
     socket.on("disconnect", () => {
       console.log(`User disconnected: ${socket.id}`);
 
       if (socket.user.role === "admin") {
         onlineAdmins.delete(socket.id);
-
-        // Notify admins about updated online count
         io.to("admins").emit("admin_status_update", {
           onlineAdminsCount: onlineAdmins.size,
         });
