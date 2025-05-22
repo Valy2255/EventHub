@@ -1,4 +1,4 @@
-// socket/socketHandlers.js - Fixed typing and seen features
+// socket/socketHandlers.js - Fixed typing and seen features + Online Presence
 import jwt from "jsonwebtoken";
 import config from "../config/config.js";
 import * as User from "../models/User.js";
@@ -14,6 +14,7 @@ import {
 const onlineUsers = new Map();
 const onlineAdmins = new Map();
 const activeConversations = new Map();
+const onlineClients = new Map(); // NEW: Track which clients are online per conversation
 
 export const setupSocketHandlers = (io) => {
   // Middleware for JWT authentication
@@ -78,12 +79,31 @@ export const setupSocketHandlers = (io) => {
           (room) => room !== socket.id && room.startsWith("conversation:")
         );
 
+        // NEW: Emit client_offline for previous conversations
+        if (socket.user.role !== "admin") {
+          for (const room of userRooms) {
+            const prevConversationId = room.split(":")[1];
+            onlineClients.delete(`${prevConversationId}:${socket.user.id}`);
+            io.to("admins").emit("client_offline", { 
+              conversationId: prevConversationId 
+            });
+          }
+        }
+
         for (const room of userRooms) {
           socket.leave(room);
         }
 
         // Join the new conversation room
         socket.join(`conversation:${conversationId}`);
+
+        // NEW: Track client online status and emit to admins
+        if (socket.user.role !== "admin") {
+          onlineClients.set(`${conversationId}:${socket.user.id}`, true);
+          io.to("admins").emit("client_online", { 
+            conversationId 
+          });
+        }
 
         // If admin is joining, update active conversations map
         if (socket.user.role === "admin") {
@@ -133,6 +153,12 @@ export const setupSocketHandlers = (io) => {
         // Join the conversation room
         socket.join(`conversation:${conversationId}`);
 
+        // NEW: Mark client as online for this conversation
+        onlineClients.set(`${conversationId}:${socket.user.id}`, true);
+        io.to("admins").emit("client_online", { 
+          conversationId 
+        });
+
         // Save initial message
         const message = await saveMessage({
           conversationId,
@@ -164,6 +190,21 @@ export const setupSocketHandlers = (io) => {
       } catch (error) {
         console.error("Error starting conversation:", error);
         socket.emit("error", { message: "Failed to start conversation" });
+      }
+    });
+
+    // NEW: Handle explicit client online/offline events
+    socket.on("client_online", ({ conversationId }) => {
+      if (socket.user.role !== "admin") {
+        onlineClients.set(`${conversationId}:${socket.user.id}`, true);
+        io.to("admins").emit("client_online", { conversationId });
+      }
+    });
+
+    socket.on("client_offline", ({ conversationId }) => {
+      if (socket.user.role !== "admin") {
+        onlineClients.delete(`${conversationId}:${socket.user.id}`);
+        io.to("admins").emit("client_offline", { conversationId });
       }
     });
 
@@ -218,6 +259,15 @@ export const setupSocketHandlers = (io) => {
 
         await updateConversationStatus(conversationId, "closed");
         activeConversations.delete(conversationId);
+
+        // NEW: Clean up client online status for this conversation
+        const clientKeysToDelete = [];
+        for (const [key] of onlineClients) {
+          if (key.startsWith(`${conversationId}:`)) {
+            clientKeysToDelete.push(key);
+          }
+        }
+        clientKeysToDelete.forEach(key => onlineClients.delete(key));
 
         io.to(`conversation:${conversationId}`).emit("conversation_closed", {
           conversationId,
@@ -284,6 +334,25 @@ export const setupSocketHandlers = (io) => {
         });
       } else {
         onlineUsers.delete(socket.user.id);
+        
+        // NEW: Clean up client online status and notify admins
+        const clientKeysToDelete = [];
+        const conversationsToNotify = new Set();
+        
+        for (const [key] of onlineClients) {
+          if (key.endsWith(`:${socket.user.id}`)) {
+            const conversationId = key.split(':')[0];
+            conversationsToNotify.add(conversationId);
+            clientKeysToDelete.push(key);
+          }
+        }
+        
+        clientKeysToDelete.forEach(key => onlineClients.delete(key));
+        
+        // Notify admins that this client went offline for each conversation
+        conversationsToNotify.forEach(conversationId => {
+          io.to("admins").emit("client_offline", { conversationId });
+        });
       }
     });
   });

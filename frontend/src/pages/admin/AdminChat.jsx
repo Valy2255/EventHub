@@ -33,6 +33,7 @@ const AdminChat = () => {
     closeConversation,
     markMessagesAsRead,
     typingUsers,
+    onlineClients,
     notifyTyping,
     notifyStopTyping,
   } = useChat();
@@ -47,27 +48,28 @@ const AdminChat = () => {
   const lastMessagesLengthRef = useRef(0);
   const isScrollingRef = useRef(false);
 
-  // Compact auto-scroll logic
+  // Refined auto-scroll logic (incorporating previous suggestions)
   useEffect(() => {
     const container = messagesContainerRef.current;
 
     const shouldAutoScroll = () => {
       if (!activeConversation || !messages.length || !container) return false;
-      if (hasScrolledToBottom) return true;
 
-      if (messages.length > lastMessagesLengthRef.current) {
+      const lastMessage = messages[messages.length - 1];
+      const isNewMessageSinceLastCheck = messages.length > lastMessagesLengthRef.current;
+
+      if (!isNewMessageSinceLastCheck) return false;
+
+      if (lastMessage?.sender_type === "client") {
+        if (hasScrolledToBottom) return true;
         const { scrollTop, scrollHeight, clientHeight } = container;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-        return distanceFromBottom < 100;
+        return distanceFromBottom < 100; // Scroll if near bottom for new client message
       }
 
-      if (
-        messages.length > lastMessagesLengthRef.current &&
-        messages[messages.length - 1]?.sender_type === "client"
-      ) {
-        return true;
+      if (lastMessage?.sender_type === "admin") {
+        return hasScrolledToBottom; // Scroll for admin message only if admin was already at bottom
       }
-
       return false;
     };
 
@@ -85,15 +87,16 @@ const AdminChat = () => {
             setTimeout(() => {
               isScrollingRef.current = false;
             }, 300);
+          } else {
+             isScrollingRef.current = false;
           }
         });
       });
     }
-
     lastMessagesLengthRef.current = messages.length;
   }, [messages, activeConversation, hasScrolledToBottom, markMessagesAsRead]);
 
-  // Compact scroll tracking
+  // Compact scroll tracking (from your file)
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -113,30 +116,39 @@ const AdminChat = () => {
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
-    setTimeout(handleScroll, 100);
+    setTimeout(handleScroll, 100); // Initial check
 
     return () => {
       container.removeEventListener("scroll", handleScroll);
       clearTimeout(scrollTimeout);
     };
-  }, [activeConversation, markMessagesAsRead, messages]);
+  }, [activeConversation, markMessagesAsRead, messages]); // Added messages dependency
 
-  // Auto-scroll when conversation changes
+  // Auto-scroll when conversation changes (from your file)
   useEffect(() => {
     if (activeConversation) {
-      setHasScrolledToBottom(true);
+      setHasScrolledToBottom(true); // Assume we want to start at the bottom for a new convo
       setTimeout(() => {
         isScrollingRef.current = true;
         if (messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
           setTimeout(() => {
             isScrollingRef.current = false;
           }, 300);
         }
-        markMessagesAsRead(activeConversation);
+        // Ensure messages are marked as read when switching to an active conversation
+        // and scrolling to the bottom.
+        if (messagesContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+            if (scrollHeight - scrollTop - clientHeight < 50) { // If actually at bottom
+                 markMessagesAsRead(activeConversation);
+            }
+        } else {
+            markMessagesAsRead(activeConversation);
+        }
       }, 100);
     }
-  }, [activeConversation, markMessagesAsRead]);
+  }, [activeConversation, markMessagesAsRead]); // Removed messages from here as it's for convo change
 
   const handleInputChange = (e) => {
     const value = e.target.value;
@@ -160,10 +172,17 @@ const AdminChat = () => {
     }
   };
 
+  // Refined handleSendMessage (incorporating previous suggestions)
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!inputValue.trim() || !connected || !activeConversation || !user)
-      return;
+    if (!inputValue.trim() || !connected || !activeConversation || !user) return;
+
+    const container = messagesContainerRef.current;
+    let isAdminInitiallyScrolledToBottom = true;
+    if (container) {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      isAdminInitiallyScrolledToBottom = scrollHeight - scrollTop - clientHeight < 10;
+    }
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const tempMessage = {
@@ -182,16 +201,22 @@ const AdminChat = () => {
     sendMessage(inputValue, tempId);
     setInputValue("");
 
-    setHasScrolledToBottom(true);
-    setTimeout(() => {
-      isScrollingRef.current = true;
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-        setTimeout(() => {
+    if (isAdminInitiallyScrolledToBottom) {
+      setHasScrolledToBottom(true);
+      setTimeout(() => {
+        isScrollingRef.current = true;
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+          setTimeout(() => {
+            isScrollingRef.current = false;
+          }, 300);
+        } else {
           isScrollingRef.current = false;
-        }, 300);
-      }
-    }, 50);
+        }
+      }, 50);
+    } else {
+      setHasScrolledToBottom(false);
+    }
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -209,7 +234,6 @@ const AdminChat = () => {
     }
   };
 
-  // Filter and sort conversations
   const filteredConversations = (conversations || []).filter(
     (conv) =>
       conv.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -228,6 +252,7 @@ const AdminChat = () => {
   );
   const isClientTyping =
     activeConversation && typingUsers?.[activeConversation] === "client";
+  const isClientOnline = activeConversation && onlineClients?.[activeConversation];
   const totalUnreadCount = sortedConversations.reduce(
     (sum, conv) => sum + (conv.unread_count || 0),
     0
@@ -255,9 +280,7 @@ const AdminChat = () => {
 
   if (loading) {
     return (
-      <div
-        className="fixed inset-x-0 top-16 bottom-0 flex overflow-hidden bg-gradient-to-br from-purple-50 to-white antialiased"
-      >
+      <div className="flex justify-center items-center bg-gradient-to-br from-purple-50 to-white" style={{ height: 'calc(100vh - 128px)' }}>
         <div className="text-center">
           <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl flex items-center justify-center mb-4 mx-auto">
             <FaSpinner className="animate-spin text-white text-lg" />
@@ -272,37 +295,35 @@ const AdminChat = () => {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem-2rem)] bg-gradient-to-br from-purple-50 to-white antialiased">
+    <div className="flex bg-gradient-to-br from-purple-50 to-white antialiased" style={{ height: 'calc(100vh - 128px)' }}> {/* */}
       {/* Compact Sidebar */}
       <div
         className={`transition-all duration-300 ease-out ${
           sidebarOpen ? "w-72" : "w-0"
-        } flex flex-col bg-white shadow-xl border-r border-purple-100 overflow-hidden`}
+        } flex flex-col bg-white shadow-xl border-r border-purple-100 overflow-hidden flex-shrink-0`}
       >
-        {/* Compact Header */}
-        <div className="h-12 bg-gradient-to-r from-purple-600 via-purple-700 to-purple-800 text-white px-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+        {/* Sidebar content from your file... */}
+        <div className="h-12 bg-gradient-to-r from-purple-600 via-purple-700 to-purple-800 text-white px-4 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
               <FaHeadset className="text-white text-sm" />
             </div>
-            <div>
-              <h2 className="font-bold text-sm">Support Center</h2>
-              <p className="text-purple-200 text-xs">
+            <div className="min-w-0">
+              <h2 className="font-bold text-sm truncate">Support Center</h2>
+              <p className="text-purple-200 text-xs truncate">
                 {sortedConversations.length} chats
                 {totalUnreadCount > 0 && ` • ${totalUnreadCount} unread`}
               </p>
             </div>
           </div>
           <button
-            className="xl:hidden text-purple-200 hover:text-white hover:bg-white/20 rounded-lg p-1.5 transition-all"
+            className="xl:hidden text-purple-200 hover:text-white hover:bg-white/20 rounded-lg p-1.5 transition-all flex-shrink-0"
             onClick={() => setSidebarOpen(false)}
           >
             <FaTimes size={14} />
           </button>
         </div>
-
-        {/* Compact Search */}
-        <div className="p-2 border-b border-slate-100">
+        <div className="p-2 border-b border-slate-100 flex-shrink-0">
           <div className="relative">
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-xs" />
             <input
@@ -314,8 +335,6 @@ const AdminChat = () => {
             />
           </div>
         </div>
-
-        {/* Compact Conversations List */}
         <div className="flex-1 overflow-y-auto">
           {sortedConversations.length === 0 ? (
             <div className="p-6 text-center h-full flex flex-col justify-center">
@@ -365,7 +384,6 @@ const AdminChat = () => {
                         </div>
                       )}
                     </div>
-
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start mb-1">
                         <h4
@@ -399,10 +417,11 @@ const AdminChat = () => {
         </div>
       </div>
 
-      {/* Compact Main Chat Area */}
-      <div className="flex flex-col flex-1 bg-white">
-        {/* Compact Header */}
-        <div className="h-12 border-b border-slate-100 bg-gradient-to-r from-white to-purple-50/50 shadow-sm flex items-center justify-between px-4">
+      {/* Main Chat Area - MODIFIED STRUCTURE FOR INPUT BAR */}
+      <div className="flex flex-col flex-1 bg-white min-w-0"> {/* Main container for chat view */}
+        {/* Fixed Header */}
+        <div className="h-12 border-b border-slate-100 bg-gradient-to-r from-white to-purple-50/50 shadow-sm flex items-center justify-between px-4 flex-shrink-0"> {/* */}
+          {/* Header content from your file... */}
           <div className="flex items-center space-x-4">
             <button
               className="xl:hidden text-slate-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg p-2 transition-all"
@@ -410,7 +429,6 @@ const AdminChat = () => {
             >
               <FaBars size={16} />
             </button>
-
             {activeConversation && currentConversation ? (
               <div className="flex items-center space-x-3">
                 {currentConversation.client_profile_image ? (
@@ -430,9 +448,17 @@ const AdminChat = () => {
                   </h3>
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-1">
-                      <FaCircle className="text-green-500 text-xs" />
-                      <span className="text-green-600 font-semibold text-xs">
-                        Online
+                      <FaCircle 
+                        className={`text-xs ${
+                          isClientOnline ? "text-green-500" : "text-gray-400"
+                        }`} 
+                      />
+                      <span 
+                        className={`font-semibold text-xs ${
+                          isClientOnline ? "text-green-600" : "text-gray-500"
+                        }`}
+                      >
+                        {isClientOnline ? "Online" : "Offline"}
                       </span>
                     </div>
                     {isClientTyping && (
@@ -459,7 +485,6 @@ const AdminChat = () => {
               </div>
             )}
           </div>
-
           <div className="flex items-center space-x-3">
             {!connected && (
               <div className="flex items-center space-x-2 text-red-500 bg-red-50 px-3 py-1.5 rounded-lg font-semibold text-xs">
@@ -467,7 +492,6 @@ const AdminChat = () => {
                 <span>Disconnected</span>
               </div>
             )}
-
             {activeConversation && (
               <button
                 onClick={handleCloseConversation}
@@ -480,23 +504,23 @@ const AdminChat = () => {
           </div>
         </div>
 
-        {/* Compact Messages Area */}
+        {/* Scrollable Messages Area */}
         <div
           ref={messagesContainerRef}
-          className="flex-1 overflow-y-auto p-2 bg-gradient-to-b from-purple-25/30 to-white"
+          className="flex-1 overflow-y-auto p-2" /* p-2 or p-1 as in your original, adjust as needed */
           style={{ scrollBehavior: "smooth" }}
         >
           {activeConversation ? (
             messages.length === 0 ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-md">
-                  <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <FaComments className="text-purple-600 text-2xl" />
+              <div className="flex items-center justify-center h-full"> {/* */}
+                <div className="text-center max-w-md"> {/* */}
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center mx-auto mb-3"> {/* */}
+                    <FaComments className="text-purple-600 text-xl" /> {/* */}
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-2">
+                  <h3 className="text-base font-bold text-slate-800 mb-2"> {/* */}
                     Ready to Help!
                   </h3>
-                  <p className="text-slate-600 text-sm">
+                  <p className="text-slate-600 text-xs"> {/* */}
                     Send a message to start helping this customer.
                   </p>
                 </div>
@@ -506,96 +530,90 @@ const AdminChat = () => {
                 const isAdmin = msg.sender_type === "admin";
                 const isCustomer = msg.sender_type === "client";
                 return (
+                  // Message rendering from your file...
                   <div
                     key={msg.id}
-                    className={`flex items-end space-x-2 mb-2 ${
-                      isAdmin ? "justify-end" : "justify-start"
+                    className={`flex items-end space-x-1 mb-1 ${ /* */
+                      isAdmin ? "justify-end" : "justify-start" /* */
                     }`}
                   >
-                    {/* Customer avatar */}
-                    {isCustomer && (
-                      <div className="flex-shrink-0 self-end">
-                        {currentConversation?.client_profile_image ? (
+                    {isCustomer && ( /* */
+                      <div className="flex-shrink-0 self-end"> {/* */}
+                        {currentConversation?.client_profile_image ? ( /* */
                           <img
                             src={currentConversation.client_profile_image}
                             alt="Customer"
-                            className="w-7 h-7 rounded-xl object-cover ring-1 ring-purple-100"
+                            className="w-6 h-6 rounded-lg object-cover ring-1 ring-purple-100" /* */
                           />
                         ) : (
-                          <div className="w-7 h-7 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center">
-                            <FaUser className="text-white text-xs" />
+                          <div className="w-6 h-6 bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg flex items-center justify-center"> {/* */}
+                            <FaUser className="text-white text-xs" /> {/* */}
                           </div>
                         )}
                       </div>
                     )}
-
                     <div
-                      className={`max-w-[70%] flex flex-col ${
-                        isAdmin ? "items-end order-first" : "items-start"
+                      className={`max-w-[80%] flex flex-col ${ /* */
+                        isAdmin ? "items-end order-first" : "items-start" /* */
                       }`}
                     >
-                      {/* Compact sender label */}
                       <div
-                        className={`text-xs font-bold mb-1 px-1 ${
-                          isAdmin ? "text-purple-700" : "text-purple-600"
+                        className={`text-xs font-bold mb-0.5 px-1 ${ /* */
+                          isAdmin ? "text-purple-700" : "text-purple-600" /* */
                         }`}
                       >
-                        {isAdmin ? "You" : "Customer"}
+                        {isAdmin ? "You" : "Customer"} {/* */}
                       </div>
-
-                      {/* Compact message bubble */}
                       <div
-                        className={`p-3 rounded-2xl shadow-sm max-w-full ${
+                        className={`p-2 rounded-xl shadow-sm max-w-full ${ /* */
                           isAdmin
-                            ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-br-md"
-                            : "bg-white text-slate-800 border border-purple-100 rounded-bl-md shadow-md"
-                        } ${msg.status === "sending" ? "opacity-70" : ""}`}
+                            ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-br-md" /* */
+                            : "bg-white text-slate-800 border border-purple-100 rounded-bl-md shadow-md" /* */
+                        } ${msg.status === "sending" ? "opacity-70" : ""}`} /* */
                       >
-                        <p className="text-sm leading-relaxed break-words">
+                        <p className="text-xs leading-relaxed break-words"> {/* */}
                           {msg.message}
                         </p>
                         <div
-                          className={`text-xs mt-2 flex items-center ${
+                          className={`text-xs mt-1 flex items-center ${ /* */
                             isAdmin
-                              ? "text-purple-200 justify-end"
-                              : "text-slate-500 justify-start"
+                              ? "text-purple-200 justify-end" /* */
+                              : "text-slate-500 justify-start" /* */
                           }`}
                         >
-                          <span>{formatTime(msg.created_at)}</span>
-                          {isAdmin && msg.status !== "sending" && (
-                            <span className="ml-2">
-                              {msg.client_read ? (
+                          <span className="text-xs">{formatTime(msg.created_at)}</span> {/* */}
+                          {isAdmin && msg.status !== "sending" && ( /* */
+                            <span className="ml-1"> {/* */}
+                              {msg.client_read ? ( /* */
                                 <FaCheckDouble
-                                  className="text-green-300"
+                                  className="text-green-300 text-xs" /* */
                                   title="Read"
                                 />
                               ) : (
                                 <FaCheck
-                                  className="text-purple-300"
+                                  className="text-purple-300 text-xs" /* */
                                   title="Sent"
                                 />
                               )}
                             </span>
                           )}
-                          {isAdmin && msg.status === "sending" && (
-                            <FaSpinner className="ml-2 animate-spin text-xs" />
+                          {isAdmin && msg.status === "sending" && ( /* */
+                            <FaSpinner className="ml-1 animate-spin text-xs" /> /* */
                           )}
                         </div>
                       </div>
                     </div>
-
-                    {/* Admin avatar */}
-                    {isAdmin && (
-                      <div className="flex-shrink-0 self-end">
-                        {user?.profile_image ? (
+                    {isAdmin && ( /* */
+                      <div className="flex-shrink-0 self-end"> {/* */}
+                        {user?.profile_image ? ( /* */
                           <img
                             src={user.profile_image}
                             alt="You"
-                            className="w-7 h-7 rounded-xl object-cover ring-1 ring-purple-200"
+                            className="w-6 h-6 rounded-lg object-cover ring-1 ring-purple-200" /* */
                           />
                         ) : (
-                          <div className="w-7 h-7 bg-gradient-to-br from-purple-600 to-purple-800 rounded-xl flex items-center justify-center">
-                            <FaHeadset className="text-white text-xs" />
+                          <div className="w-6 h-6 bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg flex items-center justify-center"> {/* */}
+                            <FaHeadset className="text-white text-xs" /> {/* */}
                           </div>
                         )}
                       </div>
@@ -605,15 +623,15 @@ const AdminChat = () => {
               })
             )
           ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-lg">
-                <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-purple-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <FaUsers className="text-purple-600 text-3xl" />
+            <div className="flex items-center justify-center h-full"> {/* */}
+              <div className="text-center max-w-lg"> {/* */}
+                <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center mx-auto mb-4"> {/* */}
+                  <FaUsers className="text-purple-600 text-2xl" /> {/* */}
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-3">
+                <h2 className="text-xl font-bold text-slate-800 mb-2"> {/* */}
                   Welcome to Support Center
                 </h2>
-                <p className="text-slate-600 leading-relaxed">
+                <p className="text-slate-600 text-sm leading-relaxed"> {/* */}
                   Select a conversation from the sidebar to start helping
                   customers.
                 </p>
@@ -623,17 +641,14 @@ const AdminChat = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Compact Input Area */}
+        {/* Fixed Input Bar Area */}
         {activeConversation && (
-          <div className="border-t border-slate-100 p-2 bg-gradient-to-r from-white to-purple-50/30">
-            <form
-              onSubmit={handleSendMessage}
-              className="flex items-end space-x-3"
-            >
-              <div className="flex-1">
-                <textarea
-                  rows="1"
-                  className="w-full max-h-32 resize-none border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm bg-white placeholder-slate-500"
+          <div className="border-t border-slate-100 bg-gradient-to-r from-white to-purple-50/30 p-2 flex-shrink-0"> {/* Removed h-14, let content define height or add back if fixed height is crucial */}
+            <form onSubmit={handleSendMessage} className="flex items-center space-x-2"> {/* */}
+              <div className="flex-1"> {/* */}
+                <input
+                  type="text"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-xs bg-white placeholder-slate-500" // Added py-2 for consistent height
                   placeholder="Type your message..."
                   value={inputValue}
                   onChange={handleInputChange}
@@ -644,28 +659,18 @@ const AdminChat = () => {
                       handleSendMessage(e);
                     }
                   }}
-                  style={{
-                    height: "auto",
-                    minHeight: "44px",
-                  }}
-                  onInput={(e) => {
-                    e.target.style.height = "auto";
-                    e.target.style.height =
-                      Math.min(e.target.scrollHeight, 128) + "px";
-                  }}
                 />
               </div>
               <button
                 type="submit"
-                className={`px-5 py-3 rounded-xl text-white font-bold transition-all flex items-center space-x-2 shadow-md hover:shadow-lg ${
+                className={`px-4 py-2 rounded-lg text-white font-bold transition-all flex items-center justify-center shadow-md hover:shadow-lg text-xs ${ /* Added py-2 */
                   connected && inputValue.trim()
-                    ? "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800"
-                    : "bg-slate-400 cursor-not-allowed"
+                    ? "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800" /* */
+                    : "bg-slate-400 cursor-not-allowed" /* */
                 }`}
                 disabled={!connected || !inputValue.trim()}
               >
-                <FaPaperPlane className="text-sm" />
-                <span className="hidden sm:inline text-sm">Send</span>
+                <FaPaperPlane className="text-xs" /> {/* */}
               </button>
             </form>
           </div>

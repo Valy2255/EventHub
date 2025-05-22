@@ -1,4 +1,4 @@
-// src/context/ChatContext.jsx - Fixed typing and seen features
+// src/context/ChatContext.jsx - Fixed typing and seen features + Online Presence
 import { createContext, useState, useEffect, useCallback, useRef } from "react";
 import { useSocket } from "../hooks/useSocket";
 import { useAuth } from "../hooks/useAuth";
@@ -22,6 +22,7 @@ export const ChatProvider = ({ children }) => {
 
   // Feature states
   const [typingUsers, setTypingUsers] = useState({}); // { conversationId: 'sender_type' }
+  const [onlineClients, setOnlineClients] = useState({}); // { conversationId: true|false }
   const [clientProfileForActiveChat, setClientProfileForActiveChat] =
     useState(null);
   const [adminProfileForActiveChat, setAdminProfileForActiveChat] =
@@ -124,6 +125,27 @@ export const ChatProvider = ({ children }) => {
       conversations.forEach((c) => emitEvent("auto_subscribe", c.id));
     }
   }, [connected, conversations, emitEvent]);
+
+  // Global presence listeners - NEW
+  useEffect(() => {
+    if (!connected) return;
+
+    const handleClientOnline = ({ conversationId }) => {
+      setOnlineClients(prev => ({ ...prev, [conversationId]: true }));
+    };
+
+    const handleClientOffline = ({ conversationId }) => {
+      setOnlineClients(prev => ({ ...prev, [conversationId]: false }));
+    };
+
+    const off1 = onEvent("client_online", handleClientOnline);
+    const off2 = onEvent("client_offline", handleClientOffline);
+
+    return () => {
+      off1();
+      off2();
+    };
+  }, [connected, onEvent]);
 
   // Global new_message handler
   useEffect(() => {
@@ -242,7 +264,7 @@ export const ChatProvider = ({ children }) => {
 
     setMessages((prev) =>
       prev.map((msg) => {
-        // Skip the reader’s own messages
+        // Skip the reader's own messages
         if (msg.sender_type === readerType) return msg;
 
         // Reader is ADMIN  → mark client messages as admin_read
@@ -547,6 +569,7 @@ export const ChatProvider = ({ children }) => {
         chatOpen,
         adminOnline,
         typingUsers,
+        onlineClients,
         clientProfileForActiveChat,
         adminProfileForActiveChat,
         notifyTyping,
