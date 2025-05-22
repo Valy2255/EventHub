@@ -6,6 +6,7 @@ import {
   FaChevronDown,
   FaInfoCircle,
   FaExternalLinkAlt,
+  FaStar,
 } from "react-icons/fa";
 import api from "../services/api";
 import CategoryHeader from "../components/layout/CategoryHeader";
@@ -480,6 +481,16 @@ export default function CategoryEvents() {
                             {event.name}
                           </h3>
 
+                          {/* Star Rating */}
+                          {event.rating && (
+                            <div className="flex items-center text-yellow-500 mb-2">
+                              <FaStar className="mr-1" />
+                              <span className="font-semibold">
+                                {parseFloat(event.rating).toFixed(1)}
+                              </span>
+                            </div>
+                          )}
+
                           {/* Show original date for rescheduled featured events */}
                           {event.status === "rescheduled" &&
                             event.original_date && (
@@ -519,7 +530,7 @@ export default function CategoryEvents() {
                             Find Tickets
                           </div>
                           {event.status === "rescheduled" && (
-                            <div className="mt-2 bg-yellow-100 border border-yellow-300 text-yellow-800 text-xs font-semibold text-center py-1 rounded">
+                            <div className="mt-2 bg-yellow-100 border border-yellow-300 text-yellow-800 text-xs font-medium text-center px-4 rounded">
                               Rescheduled Event
                             </div>
                           )}

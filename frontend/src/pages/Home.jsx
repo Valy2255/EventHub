@@ -10,7 +10,6 @@ import {
   FaTheaterMasks, 
   FaRunning, 
   FaGlassCheers, 
-  FaUsers, 
   FaStar,
   FaRegClock,
   FaSpinner
@@ -316,7 +315,7 @@ useEffect(() => {
                       {event.rating && (
                         <span className="flex items-center text-yellow-400 mr-3">
                           <FaStar className="mr-1" />
-                          {event.rating.toFixed(1)}
+                          {parseFloat(event.rating).toFixed(1)}
                         </span>
                       )}
                       <span className="text-gray-300 text-sm flex items-center">
@@ -332,7 +331,7 @@ useEffect(() => {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                       {event.min_price && (
                         <span className="text-xl font-bold">
-                          From {event.min_price} RON
+                          From ${event.min_price} 
                         </span>
                       )}
                       <Link 
@@ -473,7 +472,7 @@ useEffect(() => {
                       {event.rating && (
                         <div className="flex items-center bg-gray-900 bg-opacity-70 text-white px-2 py-1 rounded text-xs">
                           <FaStar className="text-yellow-400 mr-1" /> 
-                          {event.rating.toFixed(1)}
+                          {parseFloat(event.rating).toFixed(1)}
                         </div>
                       )}
                     </div>
@@ -502,7 +501,7 @@ useEffect(() => {
                     <div className="flex justify-between items-center mt-4">
                       {event.min_price && (
                         <span className="font-bold text-purple-700">
-                          From {event.min_price} RON
+                          From ${event.min_price} 
                         </span>
                       )}
                       <Link 

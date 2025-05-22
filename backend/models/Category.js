@@ -72,9 +72,19 @@ export const findBySlug = async (slug) => {
 export const getEvents = async (categoryId) => {
   const query = {
     text: `
-      SELECT e.* FROM events e
-      WHERE e.category_id = $1
-      ORDER BY e.date DESC
+      SELECT 
+        e.*,
+        er.avg_rating as rating,
+        er.review_count,
+        c.name as category_name,
+        s.name as subcategory_name,
+        CASE WHEN e.status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
+      FROM events e
+      LEFT JOIN event_ratings er ON e.id = er.event_id
+      LEFT JOIN subcategories s ON e.subcategory_id = s.id
+      LEFT JOIN categories c ON s.category_id = c.id
+      WHERE c.id = $1 AND e.status IN ('active', 'rescheduled')
+      ORDER BY e.date DESC, er.avg_rating DESC NULLS LAST
     `,
     values: [categoryId]
   };
@@ -87,15 +97,29 @@ export const getEvents = async (categoryId) => {
 export const getFeaturedEvents = async (categoryId) => {
   const query = {
     text: `
-      SELECT *, 
-             CASE WHEN status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
-      FROM events
-      WHERE category_id = $1 AND status IN ('active', 'rescheduled')
-      ORDER BY views DESC
-      LIMIT 2
+      SELECT 
+        e.*,
+        er.avg_rating as rating,
+        er.review_count,
+        c.name as category_name,
+        s.name as subcategory_name,
+        CASE WHEN e.status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
+      FROM events e
+      LEFT JOIN event_ratings er ON e.id = er.event_id
+      LEFT JOIN subcategories s ON e.subcategory_id = s.id
+      LEFT JOIN categories c ON s.category_id = c.id
+      WHERE c.id = $1 
+        AND e.status IN ('active', 'rescheduled')
+        AND e.date >= CURRENT_DATE
+        AND er.avg_rating IS NOT NULL
+        AND er.review_count >= 3       -- At least 3 reviews for credibility
+        AND er.avg_rating >= 4.0       -- Minimum 4.0 to be "featured"
+      ORDER BY er.avg_rating DESC, er.review_count DESC
+      LIMIT 10
     `,
     values: [categoryId]
   };
+  
   const result = await db.query(query);
   return result.rows;
 };
@@ -145,10 +169,19 @@ export const getEventsPaginated = async (categoryId, limit, offset) => {
 export const getAllWithEventCounts = async () => {
   const query = {
     text: `
-      SELECT c.*, COUNT(e.id) as event_count
+      SELECT 
+        c.*,
+        COALESCE(event_counts.event_count, 0) as event_count
       FROM categories c
-      LEFT JOIN events e ON c.id = e.category_id AND e.status IN ('active', 'rescheduled')
-      GROUP BY c.id
+      LEFT JOIN (
+        SELECT 
+          s.category_id,
+          COUNT(DISTINCT e.id) as event_count
+        FROM subcategories s
+        LEFT JOIN events e ON e.subcategory_id = s.id 
+          AND e.status IN ('active', 'rescheduled')
+        GROUP BY s.category_id
+      ) event_counts ON c.id = event_counts.category_id
       ORDER BY c.name
     `
   };
@@ -177,15 +210,22 @@ export const getTotalEventsCount = async () => {
 export const getUpcomingEvents = async (limit = 6) => {
   const query = {
     text: `
-      SELECT e.*, c.name as category_name, c.slug as category_slug,
-             s.name as subcategory_name, s.slug as subcategory_slug,
-             CASE WHEN e.status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
+      SELECT 
+        e.*,
+        er.avg_rating as rating,
+        er.review_count,
+        c.name as category_name,
+        c.slug as category_slug,
+        s.name as subcategory_name,
+        s.slug as subcategory_slug,
+        CASE WHEN e.status = 'rescheduled' THEN true ELSE false END AS is_rescheduled
       FROM events e
+      LEFT JOIN event_ratings er ON e.id = er.event_id
       LEFT JOIN categories c ON e.category_id = c.id
       LEFT JOIN subcategories s ON e.subcategory_id = s.id
       WHERE e.date >= CURRENT_DATE 
-      AND e.status IN ('active', 'rescheduled')
-      ORDER BY e.date ASC, e.time ASC
+        AND e.status IN ('active', 'rescheduled')
+      ORDER BY e.date ASC, e.time ASC, er.avg_rating DESC NULLS LAST
       LIMIT $1
     `,
     values: [limit]
