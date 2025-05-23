@@ -15,7 +15,4 @@ router.get('/history', asyncHandler(purchaseController.getPurchaseHistory));
 // Get details of a specific purchase
 router.get('/:id', asyncHandler(purchaseController.getPurchaseById));
 
-// Create a new purchase
-router.post('/', asyncHandler(purchaseController.createPurchase));
-
 export default router;

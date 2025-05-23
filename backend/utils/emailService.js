@@ -56,7 +56,7 @@ export const sendWelcomeEmail = async (email, name) => {
               <li>Receive special offers and updates</li>
             </ul>
             <div style="text-align: center; margin-top: 30px;">
-              <a href="${config.cors.origin}/events" style="background-color: #9333ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Explore Events</a>
+              <a href="${config.cors.origin}/events/search" style="background-color: #9333ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Explore Events</a>
             </div>
           </div>
           <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">

@@ -7,13 +7,12 @@ import config from "./config/config.js";
 import "./config/passport.js";
 import pg from "pg";
 import authRoutes from "./routes/auth.js";
-import adminRoutes from "./routes/admin.js";
+import adminRoutes from "./routes/admin/admin.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import ticketRoutes from "./routes/ticketRoutes.js";
-import checkInRoutes from "./routes/checkInRoutes.js";
 import statisticsRoutes from "./routes/statisticsRoutes.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import faqRoutes from "./routes/faqRoutes.js";
@@ -31,7 +30,6 @@ import { setupSocketHandlers } from "./socket/socketHandlers.js";
 const app = express();
 const httpServer = createServer(app);
 
-
 // Create a global database connection pool
 global.pool = new pg.Pool({
   user: config.db.user,
@@ -48,13 +46,13 @@ const io = new Server(httpServer, {
     origin: config.cors.origin || "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
-    allowedHeaders: ["Authorization"]
+    allowedHeaders: ["Authorization"],
   },
-  transports: ['polling', 'websocket']
+  transports: ["polling", "websocket"],
 });
 
 // Make io instance available to route handlers
-app.set('io', io);
+app.set("io", io);
 
 // Setup Socket.IO handlers
 setupSocketHandlers(io);
@@ -73,7 +71,6 @@ app.use("/api/search", searchRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/tickets", ticketRoutes);
-app.use("/api/check-in", checkInRoutes);
 app.use("/api/statistics", statisticsRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 app.use("/api/faqs", faqRoutes);

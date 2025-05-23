@@ -1,38 +1,21 @@
 // controllers/faqController.js
-import * as faqModel from '../models/Faq.js';
+import { FaqService } from '../services/FaqService.js';
 
-// Get all FAQs
+const faqService = new FaqService();
+
 export const getAllFAQs = async (req, res, next) => {
   try {
-    const faqs = await faqModel.getAllFAQs();
+    const faqs = await faqService.getAllFAQs();
     res.status(200).json({ success: true, faqs });
   } catch (error) {
     next(error);
   }
 };
 
-// Get a single FAQ by ID
-export const getFAQById = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const faq = await faqModel.getFAQById(id);
-    
-    if (!faq) {
-      return res.status(404).json({ success: false, message: 'FAQ not found' });
-    }
-    
-    res.status(200).json({ success: true, faq });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Create a new FAQ (admin only)
 export const createFAQ = async (req, res, next) => {
   try {
     const { question, answer, display_order } = req.body;
     
-    // Basic validation
     if (!question || !answer) {
       return res.status(400).json({ 
         success: false, 
@@ -40,20 +23,19 @@ export const createFAQ = async (req, res, next) => {
       });
     }
     
-    const newFAQ = await faqModel.createFAQ({ question, answer, display_order });
+    const newFAQ = await faqService.createFAQ({ question, answer, display_order });
     res.status(201).json({ success: true, faq: newFAQ });
   } catch (error) {
     next(error);
   }
 };
 
-// Update an existing FAQ (admin only)
 export const updateFAQ = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { question, answer, display_order, is_active } = req.body;
     
-    const updatedFAQ = await faqModel.updateFAQ(id, { 
+    const updatedFAQ = await faqService.updateFAQ(id, { 
       question, 
       answer, 
       display_order, 
@@ -70,11 +52,10 @@ export const updateFAQ = async (req, res, next) => {
   }
 };
 
-// Delete a FAQ (admin only)
 export const deleteFAQ = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const success = await faqModel.deleteFAQ(id);
+    const success = await faqService.deleteFAQ(id);
     
     if (!success) {
       return res.status(404).json({ success: false, message: 'FAQ not found' });
@@ -86,22 +67,19 @@ export const deleteFAQ = async (req, res, next) => {
   }
 };
 
-// Update display order of multiple FAQs (admin only)
-// in your Express controller
 export const updateFAQOrder = async (req, res) => {
-    try {
-      const { order } = req.body;
-      if (!Array.isArray(order)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Order must be an array of {id, display_order} objects'
-        });
-      }
-      await faqModel.updateOrder(order);
-      res.status(200).json({ success: true, message: 'FAQ order updated successfully' });
-    } catch (error) {
-      console.error('updateFAQOrder failed:', error);
-      res.status(500).json({ success: false, message: error.message });
+  try {
+    const { order } = req.body;
+    if (!Array.isArray(order)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order must be an array of {id, display_order} objects'
+      });
     }
-  };
-  
+    await faqService.updateFAQOrder(order);
+    res.status(200).json({ success: true, message: 'FAQ order updated successfully' });
+  } catch (error) {
+    console.error('updateFAQOrder failed:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

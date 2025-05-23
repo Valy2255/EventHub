@@ -1,4 +1,4 @@
-// src/pages/admin/AdminEventForm.jsx
+// src/pages/admin/AdminEventForm.jsx - Updated for new schema
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
@@ -12,8 +12,7 @@ import {
   FaMapMarkerAlt,
   FaImage,
   FaMoneyBillWave,
-  FaPercentage,
-  FaTicketAlt,
+  FaGlobe,
 } from "react-icons/fa";
 import api from "../../services/api";
 
@@ -29,7 +28,7 @@ const AdminEventForm = () => {
   const [subcategories, setSubcategories] = useState([]);
   const [filteredSubcategories, setFilteredSubcategories] = useState([]);
 
-  // Form data state
+  // Updated form data state to match new schema
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
@@ -40,10 +39,11 @@ const AdminEventForm = () => {
     venue: "",
     address: "",
     city: "",
+    latitude: "",
+    longitude: "",
     image_url: "",
     category_id: "",
     subcategory_id: "",
-    creator_id: "",
     min_price: "",
     max_price: "",
     status: "active",
@@ -53,21 +53,35 @@ const AdminEventForm = () => {
     featured: false,
   });
 
-  // Update this in the useEffect that fetches event data
+  // Fetch event data for editing
   useEffect(() => {
     const fetchEventData = async () => {
       if (!isEditMode) return;
 
       try {
         setLoading(true);
+        console.log('Fetching event with ID:', id);
+        
         const response = await api.get(`/admin/events/${id}`);
+        console.log('API response:', response.data);
+        
+        if (!response.data.success) {
+          throw new Error(response.data.error || 'Failed to fetch event');
+        }
+        
         const eventData = response.data.data.event;
+        console.log('Event data:', eventData);
+
+        if (!eventData) {
+          throw new Error('Event data is missing from response');
+        }
 
         // Format date for input field (YYYY-MM-DD)
         const formattedDate = eventData.date
           ? new Date(eventData.date).toISOString().split("T")[0]
           : "";
 
+        // Updated to match new schema (removed organizer_id references)
         setFormData({
           name: eventData.name || "",
           slug: eventData.slug || "",
@@ -78,10 +92,11 @@ const AdminEventForm = () => {
           venue: eventData.venue || "",
           address: eventData.address || "",
           city: eventData.city || "",
+          latitude: eventData.latitude || "",
+          longitude: eventData.longitude || "",
           image_url: eventData.image_url || "",
           category_id: eventData.category_id?.toString() || "",
           subcategory_id: eventData.subcategory_id?.toString() || "",
-          organizer_id: eventData.organizer_id?.toString() || "",
           min_price: eventData.min_price || "",
           max_price: eventData.max_price || "",
           status: eventData.status || "active",
@@ -93,7 +108,14 @@ const AdminEventForm = () => {
         });
       } catch (err) {
         console.error("Error fetching event:", err);
-        setError("Failed to load event data. Please try again.");
+        console.error("Error response:", err.response);
+        
+        const errorMessage = err.response?.data?.error || 
+                            err.response?.data?.message || 
+                            err.message || 
+                            "Failed to load event data. Please try again.";
+        
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -130,7 +152,6 @@ const AdminEventForm = () => {
       );
       setFilteredSubcategories(filtered);
 
-      // If current subcategory is not in filtered list, reset it
       if (filtered.length > 0 && formData.subcategory_id) {
         const exists = filtered.some(
           (sub) => sub.id.toString() === formData.subcategory_id.toString()
@@ -170,8 +191,7 @@ const AdminEventForm = () => {
     }
   };
 
-  // Update the handleSubmit function
-  // Update the handleSubmit function in AdminEventForm.jsx to properly handle empty numeric fields
+  // Updated handleSubmit function for new schema
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -179,16 +199,16 @@ const AdminEventForm = () => {
     setSuccess(null);
 
     try {
-      // Validate required fields
+      // Validate required fields based on new schema
       const requiredFields = [
         "name",
-        "slug",
+        "slug", 
         "description",
         "date",
+        "time",
         "venue",
         "address",
         "city",
-        "category_id",
       ];
 
       // Add validation for status changes
@@ -214,20 +234,15 @@ const AdminEventForm = () => {
         return;
       }
 
-      // Format data properly for submission
+      // Format data properly for submission (updated for new schema)
       const dataToSubmit = {
         ...formData,
-        // Ensure integer fields are properly formatted
         category_id: formData.category_id
           ? parseInt(formData.category_id)
           : null,
         subcategory_id:
           formData.subcategory_id && formData.subcategory_id.trim() !== ""
             ? parseInt(formData.subcategory_id)
-            : null,
-        creator_id:
-          formData.creator_id && formData.creator_id.trim() !== ""
-            ? parseInt(formData.creator_id)
             : null,
         min_price:
           formData.min_price && formData.min_price.toString().trim() !== ""
@@ -237,15 +252,22 @@ const AdminEventForm = () => {
           formData.max_price && formData.max_price.toString().trim() !== ""
             ? parseFloat(formData.max_price)
             : null,
+        latitude:
+          formData.latitude && formData.latitude.toString().trim() !== ""
+            ? parseFloat(formData.latitude)
+            : null,
+        longitude:
+          formData.longitude && formData.longitude.toString().trim() !== ""
+            ? parseFloat(formData.longitude)
+            : null,
       };
 
       console.log("Formatted data to submit:", dataToSubmit);
 
       if (isEditMode) {
-        // Update existing event
         const response = await api.put(`/admin/events/${id}`, dataToSubmit);
         console.log("Event updated:", response.data);
-        // Custom success message based on status
+        
         if (formData.status === "canceled") {
           setSuccess(
             "Event has been canceled. Refunds will be processed automatically."
@@ -258,13 +280,11 @@ const AdminEventForm = () => {
           setSuccess("Event updated successfully");
         }
       } else {
-        // Create new event
         const response = await api.post("/admin/events", dataToSubmit);
         console.log("Event created:", response.data);
         setSuccess("Event created successfully");
       }
 
-      // Redirect to events list after short delay
       setTimeout(() => {
         navigate("/admin/events");
       }, 1500);
@@ -346,7 +366,6 @@ const AdminEventForm = () => {
             />
           </div>
 
-          {/* Slug field */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Slug *{" "}
@@ -369,7 +388,7 @@ const AdminEventForm = () => {
 
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
+              Description *
             </label>
             <textarea
               name="description"
@@ -377,9 +396,11 @@ const AdminEventForm = () => {
               onChange={handleInputChange}
               rows="4"
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              required
             ></textarea>
           </div>
 
+          {/* Date and Time */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Event Date *
@@ -399,7 +420,7 @@ const AdminEventForm = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Event Time
+              Event Time *
             </label>
             <div className="relative">
               <input
@@ -408,6 +429,7 @@ const AdminEventForm = () => {
                 value={formData.time}
                 onChange={handleInputChange}
                 className="w-full p-2 pl-10 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                required
               />
               <FaClock className="absolute left-3 top-3 text-gray-400" />
             </div>
@@ -455,7 +477,7 @@ const AdminEventForm = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Address
+              Address *
             </label>
             <input
               type="text"
@@ -463,6 +485,7 @@ const AdminEventForm = () => {
               value={formData.address}
               onChange={handleInputChange}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              required
             />
           </div>
 
@@ -480,6 +503,43 @@ const AdminEventForm = () => {
             />
           </div>
 
+          {/* Coordinates - New fields */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Latitude
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                name="latitude"
+                value={formData.latitude}
+                onChange={handleInputChange}
+                step="0.00000001"
+                className="w-full p-2 pl-10 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="40.7128"
+              />
+              <FaGlobe className="absolute left-3 top-3 text-gray-400" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Longitude
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                name="longitude"
+                value={formData.longitude}
+                onChange={handleInputChange}
+                step="0.00000001"
+                className="w-full p-2 pl-10 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="-74.0060"
+              />
+              <FaGlobe className="absolute left-3 top-3 text-gray-400" />
+            </div>
+          </div>
+
           {/* Category Information */}
           <div className="md:col-span-2 mt-4">
             <h2 className="text-lg font-semibold text-gray-700 mb-3">
@@ -489,14 +549,13 @@ const AdminEventForm = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Category *
+              Category
             </label>
             <select
               name="category_id"
               value={formData.category_id}
               onChange={handleInputChange}
               className="w-full p-2 border rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              required
             >
               <option value="">Select a category</option>
               {categories.map((category) => (
@@ -618,7 +677,7 @@ const AdminEventForm = () => {
             </p>
           </div>
 
-          {/* Additional fields for canceled events */}
+          {/* Status change reason fields */}
           {formData.status === "canceled" && (
             <div className="md:col-span-2 mt-4 p-4 bg-red-50 rounded-md border border-red-200">
               <h3 className="text-md font-semibold text-red-700 mb-2">
@@ -637,8 +696,7 @@ const AdminEventForm = () => {
               ></textarea>
               <p className="text-xs text-yellow-600 mt-1">
                 <FaExclamationTriangle className="inline mr-1" />
-                Updating the reason will send a new notification to ticket
-                holders.
+                Updating the reason will send a new notification to ticket holders.
               </p>
               <p className="text-xs text-red-600 mt-1">
                 <FaExclamationTriangle className="inline mr-1" />
@@ -647,7 +705,6 @@ const AdminEventForm = () => {
             </div>
           )}
 
-          {/* Additional fields for rescheduled events */}
           {formData.status === "rescheduled" && (
             <div className="md:col-span-2 mt-4 p-4 bg-yellow-50 rounded-md border border-yellow-200">
               <h3 className="text-md font-semibold text-yellow-700 mb-2">
@@ -667,8 +724,7 @@ const AdminEventForm = () => {
                 ></textarea>
                 <p className="text-xs text-yellow-600 mt-1">
                   <FaExclamationTriangle className="inline mr-1" />
-                  This will automatically notify all ticket holders of the new
-                  date and time.
+                  This will automatically notify all ticket holders of the new date and time.
                 </p>
               </div>
             </div>

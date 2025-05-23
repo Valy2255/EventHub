@@ -43,7 +43,7 @@ const TicketCheckIn = () => {
       setTicketResult(null);
 
       // Send the QR data to the API
-      const apiResponse = await api.post("/check-in/validate", {
+      const apiResponse = await api.post("/admin/check-in/validate", {
         qrData: qrCodeData,
       });
 
@@ -93,12 +93,12 @@ const TicketCheckIn = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchEventStats, isScanning, resetScannerState]);
 
   // Fetch event check-in statistics
   const fetchEventStats = useCallback(async (eventId) => {
     try {
-      const statsResponse = await api.get(`/check-in/stats/${eventId}`);
+      const statsResponse = await api.get(`/admin/check-in/stats/${eventId}`);
       setEventStats(statsResponse.data.data.stats);
       setRecentCheckIns(statsResponse.data.data.recentCheckIns || []);
     } catch (statsError) {
@@ -154,7 +154,7 @@ const TicketCheckIn = () => {
         };
 
         // Callback for errors
-        const onScanFailure = (error) => {
+        const onScanFailure = () => {
           // We're going to completely silence these errors
           // The Html5QrcodeScanner throws these constantly when not finding a QR code
           // This is normal behavior and shouldn't be logged as errors
@@ -231,7 +231,7 @@ const TicketCheckIn = () => {
       setError(null);
       setSuccess(null);
 
-      await api.post(`/check-in/${ticketResult.ticket.id}/confirm`, {});
+      await api.post(`/admin/check-in/${ticketResult.ticket.id}/confirm`, {});
 
       setSuccess("Ticket successfully checked in!");
       setTicketResult({
@@ -281,40 +281,31 @@ const TicketCheckIn = () => {
   };
 
   // Reset scanner state to scan another ticket
-  const resetScannerState = () => {
+  const resetScannerState = useCallback(() => {
     setTicketResult(null);
     setError(null);
     setSuccess(null);
     setManualInput("");
 
-    // For scanner reset, we need to be more careful
     if (qrcodeScannerRef.current) {
-      try {
-        // First try to clear and stop existing scanner
-        qrcodeScannerRef.current
-          .clear()
-          .then(() => {
-            console.log("Scanner cleared successfully");
-            setScannerInitialized(false);
+      qrcodeScannerRef.current
+        .clear()
+        .then(() => {
+          console.log("Scanner cleared successfully");
+          setScannerInitialized(false);
 
-            // Short delay before reinitializing
-            setTimeout(() => {
-              if (isScanning) {
-                setScannerInitialized(true);
-              }
-            }, 300);
-          })
-          .catch((clearError) => {
-            console.error("Failed to clear scanner:", clearError);
-            // Force reinitialize
-            setScannerInitialized(false);
-          });
-      } catch (e) {
-        console.error("Error during scanner reset:", e);
-        setScannerInitialized(false);
-      }
+          setTimeout(() => {
+            if (isScanning) {
+              setScannerInitialized(true);
+            }
+          }, 300);
+        })
+        .catch((clearError) => {
+          console.error("Failed to clear scanner:", clearError);
+          setScannerInitialized(false);
+        });
     }
-  };
+  }, [isScanning]);  // 👈 only re-create when `isScanning` changes
 
   // Format date for display
   const formatDate = (dateString) => {

@@ -16,6 +16,9 @@ const AdminLegalDocuments = () => {
   const [currentDocumentType, setCurrentDocumentType] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activateConfirm, setActivateConfirm] = useState(null);
+  
+  // Add state for selected tab
+  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
 
   // Fetch documents on component mount
   useEffect(() => {
@@ -28,11 +31,12 @@ const AdminLegalDocuments = () => {
       setError(null);
       
       // Fetch privacy policy versions
-      const privacyResponse = await api.get('/legal/admin/privacy_policy/versions');
+      const privacyResponse = await api.get('/admin/legal/privacy_policy/versions');
+      
       setPrivacyPolicyVersions(privacyResponse.data.documents);
       
       // Fetch terms & conditions versions
-      const termsResponse = await api.get('/legal/admin/terms_conditions/versions');
+      const termsResponse = await api.get('/admin/legal/terms_conditions/versions');
       setTermsVersions(termsResponse.data.documents);
       
       setLoading(false);
@@ -46,12 +50,28 @@ const AdminLegalDocuments = () => {
   const handleEdit = (document) => {
     setCurrentDocument(document);
     setCurrentDocumentType(document.document_type);
+    
+    // Set the correct tab based on document type
+    if (document.document_type === 'terms_conditions') {
+      setSelectedTabIndex(1);
+    } else {
+      setSelectedTabIndex(0);
+    }
+    
     setIsFormOpen(true);
   };
 
   const handleAdd = (documentType) => {
     setCurrentDocument(null);
     setCurrentDocumentType(documentType);
+    
+    // Set the correct tab based on document type
+    if (documentType === 'terms_conditions') {
+      setSelectedTabIndex(1);
+    } else {
+      setSelectedTabIndex(0);
+    }
+    
     setIsFormOpen(true);
   };
 
@@ -71,7 +91,7 @@ const AdminLegalDocuments = () => {
 
   const handleDelete = async (id) => {
     try {
-      await api.delete(`/legal/admin/${id}`);
+      await api.delete(`/admin/legal/${id}`);
       fetchDocuments();
       setDeleteConfirm(null);
     } catch (err) {
@@ -82,7 +102,7 @@ const AdminLegalDocuments = () => {
 
   const handleActivate = async (id) => {
     try {
-      await api.put(`/legal/admin/${id}`, { is_active: true });
+      await api.put(`/admin/legal/${id}`, { is_active: true });
       fetchDocuments();
       setActivateConfirm(null);
     } catch (err) {
@@ -95,10 +115,10 @@ const AdminLegalDocuments = () => {
     try {
       if (currentDocument) {
         // Update existing document
-        await api.put(`/legal/admin/${currentDocument.id}`, formData);
+        await api.put(`/admin/legal/${currentDocument.id}`, formData);
       } else {
         // Create new document version
-        await api.post('/legal/admin', formData);
+        await api.post('/admin/legal', formData);
       }
       // Refresh the documents list
       fetchDocuments();
@@ -274,7 +294,7 @@ const AdminLegalDocuments = () => {
         </p>
       </div>
 
-      <Tab.Group>
+      <Tab.Group selectedIndex={selectedTabIndex} onChange={setSelectedTabIndex}>
         <Tab.List className="flex p-1 space-x-1 bg-purple-100 rounded-xl mb-6">
           <Tab
             className={({ selected }) =>

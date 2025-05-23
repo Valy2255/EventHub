@@ -21,7 +21,7 @@ const AdminFAQs = () => {
   const fetchFAQs = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/faqs');
+      const response = await api.get('faqs');
       setFaqs(response.data.faqs);
       setLoading(false);
     } catch (err) {
@@ -52,7 +52,7 @@ const AdminFAQs = () => {
 
   const handleDelete = async (id) => {
     try {
-      await api.delete(`/faqs/${id}`);
+      await api.delete(`/admin/faqs/${id}`);
       setFaqs(faqs.filter(faq => faq.id !== id));
       setDeleteConfirm(null);
     } catch (err) {
@@ -65,10 +65,10 @@ const AdminFAQs = () => {
     try {
       if (currentFaq) {
         // Update existing FAQ
-        await api.put(`/faqs/${currentFaq.id}`, formData);
+        await api.put(`/admin/faqs/${currentFaq.id}`, formData);
       } else {
         // Create new FAQ
-        await api.post('/faqs', formData);
+        await api.post('admin/faqs', formData);
       }
       // Refresh the FAQ list
       fetchFAQs();
@@ -104,7 +104,7 @@ const moveItem = async (id, direction) => {
   
     try {
       console.log('Sending orderData →', orderData);
-      await api.post('/faqs/order', { order: orderData });
+      await api.post('admin/faqs/order', { order: orderData });
     } catch (err) {
       console.error('Error reordering FAQs:', err.response?.data || err);
       alert(`Failed to update FAQ order: ${err.response?.data?.message || err.message}`);
