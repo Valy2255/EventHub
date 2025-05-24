@@ -12,7 +12,5 @@ router.get('/', auth, CreditController.getCreditBalance);
 // Get credit transaction history
 router.get('/history', auth, CreditController.getCreditHistory);
 
-// Admin route to adjust user credits
-router.post('/adjust', admin, CreditController.adjustUserCredits);
 
 export default router;

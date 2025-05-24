@@ -1,4 +1,4 @@
-// backend/models/Review.js
+// backend/models/Review.js (UPDATED)
 import * as db from "../config/db.js";
 
 // Find review by ID
@@ -62,8 +62,9 @@ export const findUserReview = async (userId, eventId) => {
 };
 
 // Create a new review
-export const create = async (data) => {
+export const create = async (data, client = null) => {
   const { user_id, event_id, rating, comment } = data;
+  const queryExecutor = client || db;
 
   const query = {
     text: `
@@ -75,7 +76,7 @@ export const create = async (data) => {
   };
 
   try {
-    const result = await db.query(query);
+    const result = await queryExecutor.query(query);
     return result.rows[0];
   } catch (error) {
     console.error("Error creating review:", error);
@@ -84,8 +85,9 @@ export const create = async (data) => {
 };
 
 // Update a review
-export const update = async (id, data) => {
+export const update = async (id, data, client = null) => {
   const { rating, comment } = data;
+  const queryExecutor = client || db;
 
   const query = {
     text: `
@@ -98,7 +100,7 @@ export const update = async (id, data) => {
   };
 
   try {
-    const result = await db.query(query);
+    const result = await queryExecutor.query(query);
     return result.rows[0];
   } catch (error) {
     console.error("Error updating review:", error);
@@ -107,7 +109,9 @@ export const update = async (id, data) => {
 };
 
 // Delete a review
-export const remove = async (id) => {
+export const remove = async (id, client = null) => {
+  const queryExecutor = client || db;
+
   const query = {
     text: `
       DELETE FROM reviews
@@ -118,7 +122,7 @@ export const remove = async (id) => {
   };
 
   try {
-    const result = await db.query(query);
+    const result = await queryExecutor.query(query);
     return result.rows[0];
   } catch (error) {
     console.error("Error deleting review:", error);

@@ -1,6 +1,7 @@
 import express from "express";
 import auth from "../../middleware/auth.js";
 import admin from "../../middleware/admin.js";
+import { asyncHandler } from "../../middleware/asyncHandler.js";
 import * as categoryController from "../../controllers/categoryController.js";
 import * as adminController from "../../controllers/adminController.js";
 import * as subcategoryController from "../../controllers/subcategoryController.js";
@@ -31,6 +32,8 @@ router.get("/events/:id", adminController.getEventById);
 router.post("/events", adminController.createEvent);
 router.put("/events/:id", adminController.updateEvent);
 router.delete("/events/:id", adminController.deleteEvent);
+router.put('/events/:id/cancel', asyncHandler(adminController.cancelEvent));
+router.put('/events/:id/reschedule',  asyncHandler(adminController.rescheduleEvent));
 
 // User management
 router.get("/users", adminController.getAllUsers);

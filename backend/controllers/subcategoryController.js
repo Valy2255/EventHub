@@ -1,9 +1,11 @@
 // backend/controllers/subcategoryController.js
-import * as Subcategory from '../models/Subcategory.js';
+import { SubcategoryService } from '../services/SubcategoryService.js';
+
+const subcategoryService = new SubcategoryService();
 
 export const getAllSubcategories = async (req, res, next) => {
   try {
-    const subcategories = await Subcategory.getAll(req.query.categoryId);
+    const subcategories = await subcategoryService.getAllSubcategories(req.query.categoryId);
     res.json({ subcategories });
   } catch (error) {
     next(error);
@@ -12,7 +14,7 @@ export const getAllSubcategories = async (req, res, next) => {
 
 export const getSubcategoryById = async (req, res, next) => {
   try {
-    const subcategory = await Subcategory.findById(req.params.id);
+    const subcategory = await subcategoryService.getSubcategoryById(req.params.id);
     if (!subcategory) {
       return res.status(404).json({ error: 'Subcategory not found' });
     }
@@ -26,13 +28,14 @@ export const createSubcategory = async (req, res, next) => {
   try {
     const { category_id, name, slug, description } = req.body;
     
-    if (!category_id || !name || !slug) {
-      return res.status(400).json({ error: 'Category ID, name, and slug are required' });
-    }
-    
-    const subcategory = await Subcategory.create({ category_id, name, slug, description });
+    const subcategory = await subcategoryService.createSubcategory({ 
+      category_id, name, slug, description 
+    });
     res.status(201).json({ subcategory });
   } catch (error) {
+    if (error.message === 'Category ID, name, and slug are required') {
+      return res.status(400).json({ error: error.message });
+    }
     next(error);
   }
 };
@@ -41,33 +44,30 @@ export const updateSubcategory = async (req, res, next) => {
   try {
     const { category_id, name, slug, description, active } = req.body;
     
-    if (!category_id || !name || !slug) {
-      return res.status(400).json({ error: 'Category ID, name, and slug are required' });
-    }
-    
-    const subcategory = await Subcategory.update(req.params.id, { 
-      category_id, name, slug, description, active: active !== undefined ? active : true 
+    const subcategory = await subcategoryService.updateSubcategory(req.params.id, {
+      category_id, name, slug, description, active
     });
-    
-    if (!subcategory) {
-      return res.status(404).json({ error: 'Subcategory not found' });
-    }
     
     res.json({ subcategory });
   } catch (error) {
+    if (error.message === 'Category ID, name, and slug are required') {
+      return res.status(400).json({ error: error.message });
+    }
+    if (error.message === 'Subcategory not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };
 
 export const deleteSubcategory = async (req, res, next) => {
   try {
-    const subcategory = await Subcategory.remove(req.params.id);
-    if (!subcategory) {
-      return res.status(404).json({ error: 'Subcategory not found' });
-    }
-    
+    await subcategoryService.deleteSubcategory(req.params.id);
     res.json({ message: 'Subcategory deleted successfully' });
   } catch (error) {
+    if (error.message === 'Subcategory not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };

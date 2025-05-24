@@ -9,10 +9,8 @@ router.get('/', categoryController.getAllCategoriesWithSubcategories);
 
 // Routes for upcoming events
 router.get('/events/upcoming', categoryController.getUpcomingEvents);
-router.get('/events/upcoming/filtered', categoryController.getUpcomingEventsFiltered);
 
-// Public endpoints using slugs
-// backend/routes/categoryRoutes.js
+// Routes for categories and events
 router.get('/:slug', categoryController.getCategoryBySlug);
 router.get('/:slug/events/featured', categoryController.getFeaturedEventsByCategory);
 router.get('/:slug/events', categoryController.getEventsByCategoryPaginated);

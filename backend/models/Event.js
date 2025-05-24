@@ -1,4 +1,3 @@
-// backend/models/Event.js
 import * as db from "../config/db.js";
 
 // Find event by ID with detailed information
@@ -16,7 +15,6 @@ export const findById = async (id) => {
     values: [id],
   };
 
-  // Rest of the function remains the same
   try {
     const result = await db.query(query);
     return result.rows[0];
@@ -75,10 +73,8 @@ export const incrementViews = async (id) => {
   }
 };
 
-// Add these to your Event.js file
-
 // Create a new event
-export const create = async (data) => {
+export const create = async (data, client = null) => {
   const {
     name,
     description,
@@ -95,6 +91,8 @@ export const create = async (data) => {
     cancellation_policy,
     max_tickets,
   } = data;
+
+  const queryExecutor = client || db;
 
   const query = {
     text: `
@@ -125,7 +123,7 @@ export const create = async (data) => {
   };
 
   try {
-    const result = await db.query(query);
+    const result = await queryExecutor.query(query);
     return result.rows[0];
   } catch (error) {
     console.error("Error creating event:", error);
@@ -134,7 +132,9 @@ export const create = async (data) => {
 };
 
 // Update an event
-export const update = async (id, data) => {
+export const update = async (id, data, client = null) => {
+  const queryExecutor = client || db;
+
   // Construct set statement
   const updates = [];
   const values = [];
@@ -158,7 +158,7 @@ export const update = async (id, data) => {
   };
 
   try {
-    const result = await db.query(query);
+    const result = await queryExecutor.query(query);
     return result.rows[0];
   } catch (error) {
     console.error("Error updating event:", error);
@@ -167,14 +167,16 @@ export const update = async (id, data) => {
 };
 
 // Delete an event
-export const deleteEvent = async (id) => {
+export const deleteEvent = async (id, client = null) => {
+  const queryExecutor = client || db;
+
   const query = {
     text: "DELETE FROM events WHERE id = $1 RETURNING id",
     values: [id],
   };
 
   try {
-    const result = await db.query(query);
+    const result = await queryExecutor.query(query);
     return result.rows[0];
   } catch (error) {
     console.error("Error deleting event:", error);
@@ -248,5 +250,43 @@ export const findAll = async (filters = {}, pagination = {}) => {
   } catch (error) {
     console.error("Error finding all events:", error);
     throw error;
+  }
+};
+
+// Helper to check if user has permission to modify an event
+export const checkEventPermission = async (eventId, userId) => {
+  try {
+    // Find event
+    const result = await db.query(
+      'SELECT * FROM events WHERE id = $1',
+      [eventId]
+    );
+    
+    if (result.rows.length === 0) {
+      return false; // Event not found
+    }
+    
+    const event = result.rows[0];
+    
+    // If creator_id matches userId, user has permission
+    if (event.creator_id !== null && event.creator_id === userId) {
+      return true;
+    }
+    
+    // Check if user is admin
+    const userResult = await db.query(
+      'SELECT role FROM users WHERE id = $1',
+      [userId]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return false; // User not found
+    }
+    
+    const user = userResult.rows[0];
+    return user.role === 'admin';
+  } catch (error) {
+    console.error('Error checking event permission:', error);
+    return false;
   }
 };

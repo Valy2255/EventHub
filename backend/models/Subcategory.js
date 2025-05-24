@@ -1,4 +1,6 @@
+// ================================
 // backend/models/Subcategory.js
+// ================================
 import * as db from '../config/db.js';
 
 export const getAll = async (categoryId = null) => {
@@ -29,8 +31,9 @@ export const findById = async (id) => {
   return result.rows[0];
 };
 
-export const create = async (data) => {
+export const create = async (data, client = null) => {
   const { category_id, name, slug, description } = data;
+  const queryExecutor = client || db;
   
   const query = {
     text: `INSERT INTO subcategories(category_id, name, slug, description) 
@@ -39,12 +42,13 @@ export const create = async (data) => {
     values: [category_id, name, slug, description]
   };
   
-  const result = await db.query(query);
+  const result = await queryExecutor.query(query);
   return result.rows[0];
 };
 
-export const update = async (id, data) => {
+export const update = async (id, data, client = null) => {
   const { category_id, name, slug, description, active } = data;
+  const queryExecutor = client || db;
   
   const query = {
     text: `UPDATE subcategories 
@@ -54,17 +58,19 @@ export const update = async (id, data) => {
     values: [category_id, name, slug, description, active, id]
   };
   
-  const result = await db.query(query);
+  const result = await queryExecutor.query(query);
   return result.rows[0];
 };
 
-export const remove = async (id) => {
+export const remove = async (id, client = null) => {
+  const queryExecutor = client || db;
+  
   const query = {
     text: 'DELETE FROM subcategories WHERE id = $1 RETURNING *',
     values: [id]
   };
   
-  const result = await db.query(query);
+  const result = await queryExecutor.query(query);
   return result.rows[0];
 };
 
@@ -113,3 +119,4 @@ export const getAllWithEventCounts = async (categoryId) => {
   const result = await db.query(query);
   return result.rows;
 };
+

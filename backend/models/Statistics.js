@@ -1,4 +1,4 @@
-// backend/models/Statistics.js - Updated version
+// backend/models/Statistics.js (No changes needed)
 import * as db from '../config/db.js';
 
 // Get event statistics (counts by category and total)
@@ -50,23 +50,4 @@ export const getUpcomingEventsCount = async () => {
   
   const result = await db.query(query);
   return parseInt(result.rows[0].upcoming_count, 10);
-};
-
-// You might also want to add this new function to get statistics about rescheduled events
-export const getRescheduledEventsStatistics = async () => {
-  const query = {
-    text: `
-      SELECT 
-        COUNT(*) as total_rescheduled,
-        COUNT(CASE WHEN date >= CURRENT_DATE THEN 1 END) as upcoming_rescheduled
-      FROM events
-      WHERE status = 'rescheduled'
-    `
-  };
-  
-  const result = await db.query(query);
-  return {
-    totalRescheduled: parseInt(result.rows[0].total_rescheduled, 10),
-    upcomingRescheduled: parseInt(result.rows[0].upcoming_rescheduled, 10)
-  };
 };

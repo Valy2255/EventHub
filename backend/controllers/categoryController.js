@@ -1,10 +1,11 @@
-import * as Category from '../models/Category.js';
-import * as Subcategory from '../models/Subcategory.js';
+import { CategoryService } from '../services/CategoryService.js';
+
+const categoryService = new CategoryService();
 
 // Categories
 export const getAllCategories = async (req, res, next) => {
   try {
-    const categories = await Category.getAll();
+    const categories = await categoryService.getAllCategories();
     res.json({ categories });
   } catch (error) {
     next(error);
@@ -13,7 +14,7 @@ export const getAllCategories = async (req, res, next) => {
 
 export const getCategoryById = async (req, res, next) => {
   try {
-    const category = await Category.findById(req.params.id);
+    const category = await categoryService.getCategoryById(req.params.id);
     if (!category) {
       return res.status(404).json({ error: 'Category not found' });
     }
@@ -31,7 +32,7 @@ export const createCategory = async (req, res, next) => {
       return res.status(400).json({ error: 'Name and slug are required' });
     }
     
-    const category = await Category.create({ name, slug, description });
+    const category = await categoryService.createCategory({ name, slug, description });
     res.status(201).json({ category });
   } catch (error) {
     next(error);
@@ -46,7 +47,7 @@ export const updateCategory = async (req, res, next) => {
       return res.status(400).json({ error: 'Name and slug are required' });
     }
     
-    const category = await Category.update(req.params.id, { name, slug, description });
+    const category = await categoryService.updateCategory(req.params.id, { name, slug, description });
     if (!category) {
       return res.status(404).json({ error: 'Category not found' });
     }
@@ -59,7 +60,7 @@ export const updateCategory = async (req, res, next) => {
 
 export const deleteCategory = async (req, res, next) => {
   try {
-    const category = await Category.remove(req.params.id);
+    const category = await categoryService.deleteCategory(req.params.id);
     if (!category) {
       return res.status(404).json({ error: 'Category not found' });
     }
@@ -73,28 +74,8 @@ export const deleteCategory = async (req, res, next) => {
 // Get all categories with their subcategories
 export const getAllCategoriesWithSubcategories = async (req, res, next) => {
   try {
-    // Get categories with event counts
-    const categories = await Category.getAllWithEventCounts();
-    
-    // Get total events count
-    const totalEvents = await Category.getTotalEventsCount();
-    
-    // For each category, get subcategories with event counts
-    const categoriesWithSubcategories = await Promise.all(
-      categories.map(async (category) => {
-        const subcategories = await Subcategory.getAllWithEventCounts(category.id);
-        return {
-          ...category,
-          subcategories
-        };
-      })
-    );
-    
-    res.json({ 
-      categories: categoriesWithSubcategories,
-      totalEvents,
-      count: categories.length
-    });
+    const result = await categoryService.getAllCategoriesWithSubcategories();
+    res.json(result);
   } catch (error) {
     next(error);
   }
@@ -104,22 +85,12 @@ export const getAllCategoriesWithSubcategories = async (req, res, next) => {
 export const getEventsByCategory = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    
-    // Find category by slug
-    const category = await Category.findBySlug(slug);
-    
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-    
-    // Get all events from this category
-    const events = await Category.getEvents(category.id);
-    
-    res.json({ 
-      category,
-      events
-    });
+    const result = await categoryService.getEventsByCategory(slug);
+    res.json(result);
   } catch (error) {
+    if (error.message === 'Category not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };
@@ -128,33 +99,12 @@ export const getEventsByCategory = async (req, res, next) => {
 export const getEventsBySubcategory = async (req, res, next) => {
   try {
     const { categorySlug, subcategorySlug } = req.params;
-    
-    // Find category by slug
-    const category = await Category.findBySlug(categorySlug);
-    
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-    
-    // Find subcategory by slug and category_id
-    const subcategory = await Subcategory.findBySlug(category.id, subcategorySlug);
-    
-    if (!subcategory) {
-      return res.status(404).json({ error: 'Subcategory not found' });
-    }
-    
-    // Get all events from this subcategory
-    const events = await Subcategory.getEvents(subcategory.id);
-
-    const totalCount = events.length;
-    
-    res.json({
-      category,
-      subcategory,
-      events,
-      totalCount
-    });
+    const result = await categoryService.getEventsBySubcategory(categorySlug, subcategorySlug);
+    res.json(result);
   } catch (error) {
+    if (error.message === 'Category not found' || error.message === 'Subcategory not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };
@@ -163,12 +113,12 @@ export const getEventsBySubcategory = async (req, res, next) => {
 export const getCategoryBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const category = await Category.findBySlug(slug);
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
+    const category = await categoryService.getCategoryBySlug(slug);
     res.json({ category });
   } catch (error) {
+    if (error.message === 'Category not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };
@@ -177,13 +127,12 @@ export const getCategoryBySlug = async (req, res, next) => {
 export const getFeaturedEventsByCategory = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const category = await Category.findBySlug(slug);
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-    const events = await Category.getFeaturedEvents(category.id);
-    res.json({ events });
+    const result = await categoryService.getFeaturedEventsByCategory(slug);
+    res.json(result);
   } catch (error) {
+    if (error.message === 'Category not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };
@@ -195,19 +144,13 @@ export const getEventsByCategoryPaginated = async (req, res, next) => {
     let { page = 1, limit = 20 } = req.query;
     page = parseInt(page);
     limit = parseInt(limit);
-    const category = await Category.findBySlug(slug);
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-    const offset = (page - 1) * limit;
-    const { events, totalCount } = await Category.getEventsPaginated(category.id, limit, offset);
-    const totalPages = Math.ceil(totalCount / limit);
-    res.json({
-      events,
-      totalPages,
-      totalCount
-    });
+    
+    const result = await categoryService.getEventsByCategoryPaginated(slug, page, limit);
+    res.json(result);
   } catch (error) {
+    if (error.message === 'Category not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };
@@ -215,19 +158,12 @@ export const getEventsByCategoryPaginated = async (req, res, next) => {
 export const getSubcategoriesForCategory = async (req, res, next) => {
   try {
     const { slug } = req.params;
-
-    // 1) Check if category exists
-    const category = await Category.findBySlug(slug);
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-
-    // 2) Fetch subcategories for this category
-    const subcategories = await Subcategory.getAll(category.id);
-
-    // 3) Return them
-    res.json({ subcategories });
+    const result = await categoryService.getSubcategoriesForCategory(slug);
+    res.json(result);
   } catch (error) {
+    if (error.message === 'Category not found') {
+      return res.status(404).json({ error: error.message });
+    }
     next(error);
   }
 };
@@ -238,53 +174,11 @@ export const getUpcomingEvents = async (req, res, next) => {
     let { limit = 6 } = req.query;
     limit = parseInt(limit);
     
-    const events = await Category.getUpcomingEvents(limit);
-    
-    res.json({
-      events,
-      count: events.length
-    });
+    const result = await categoryService.getUpcomingEvents(limit);
+    res.json(result);
   } catch (error) {
     console.error('Error fetching upcoming events:', error);
     next(error);
   }
 };
 
-// Get upcoming events with filtering options
-export const getUpcomingEventsFiltered = async (req, res, next) => {
-  try {
-    const { 
-      limit = 6, 
-      categoryId = null, 
-      location = null, 
-      startDate = null, 
-      endDate = null,
-      lat = null,
-      lng = null
-    } = req.query;
-    
-    // Convert string parameters to the correct types
-    const options = {
-      limit: parseInt(limit),
-      categoryId: categoryId ? parseInt(categoryId) : null,
-      location,
-      startDate,
-      endDate,
-      lat,
-      lng
-    };
-    
-    const events = await Category.getUpcomingEventsFiltered(options);
-    
-    res.json({
-      events,
-      count: events.length
-    });
-  } catch (error) {
-    console.error('Error fetching filtered upcoming events:', error);
-    next(error);
-  }
-};
-
- 
-  

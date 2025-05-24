@@ -10,16 +10,12 @@ const router = express.Router();
 // Public routes
 router.get('/:id', asyncHandler(eventController.getEventById));
 router.post('/:id/view', asyncHandler(eventController.incrementViewCount));
-
-// Event status change routes - protect with auth
-router.put('/:id/cancel', auth, asyncHandler(eventController.cancelEvent));
-router.put('/:id/reschedule', auth, asyncHandler(eventController.rescheduleEvent));
+router.get('/:id/ticket-types', asyncHandler(eventController.getEventTicketTypes));
 
 // Review routes
 router.get('/:id/reviews', asyncHandler(reviewController.getEventReviews));
 router.post('/:id/reviews', auth, asyncHandler(reviewController.createReview));
 router.put('/reviews/:reviewId', auth, asyncHandler(reviewController.updateReview));
 router.delete('/reviews/:reviewId', auth, asyncHandler(reviewController.deleteReview));
-router.get('/:id/ticket-types', asyncHandler(eventController.getEventTicketTypes));
 
 export default router;

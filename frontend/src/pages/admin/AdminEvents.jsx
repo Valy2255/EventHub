@@ -210,9 +210,12 @@ const AdminEvents = () => {
       setActionLoading(true);
       setError(null);
 
-      const response = await api.put(`/events/${eventToAction.id}/cancel`, {
-        cancelReason: actionReason,
-      });
+      const response = await api.put(
+        `/admin/events/${eventToAction.id}/cancel`,
+        {
+          cancelReason: actionReason,
+        }
+      );
 
       // Update the event in the list if successful
       if (response.data.success) {
@@ -256,11 +259,14 @@ const AdminEvents = () => {
       setActionLoading(true);
       setError(null);
 
-      const response = await api.put(`/events/${eventToAction.id}/reschedule`, {
-        newDate: newEventDate,
-        newTime: newEventTime,
-        rescheduleReason: actionReason,
-      });
+      const response = await api.put(
+        `/admin/events/${eventToAction.id}/reschedule`,
+        {
+          newDate: newEventDate,
+          newTime: newEventTime,
+          rescheduleReason: actionReason,
+        }
+      );
 
       // Update the event in the list if successful
       if (response.data.success) {
@@ -327,12 +333,6 @@ const AdminEvents = () => {
             Active
           </span>
         );
-      case "draft":
-        return (
-          <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded-full">
-            Draft
-          </span>
-        );
       case "canceled":
       case "cancelled":
         return (
@@ -346,12 +346,7 @@ const AdminEvents = () => {
             Rescheduled
           </span>
         );
-      case "completed":
-        return (
-          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-            Completed
-          </span>
-        );
+
       case "inactive":
         return (
           <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded-full">
@@ -454,10 +449,8 @@ const AdminEvents = () => {
             >
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
-              <option value="draft">Draft</option>
               <option value="canceled">Canceled</option>
               <option value="rescheduled">Rescheduled</option>
-              <option value="completed">Completed</option>
               <option value="inactive">Inactive</option>
             </select>
           </div>

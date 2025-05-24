@@ -2,9 +2,6 @@
 import { AuthService } from '../services/AuthService.js';
 const authService = new AuthService();
 
-/**
- * POST /api/auth/register
- */
 export const register = async (req, res, next) => {
   try {
     const { user, token } = await authService.register(req.body);
@@ -17,9 +14,6 @@ export const register = async (req, res, next) => {
   }
 };
 
-/**
- * POST /api/auth/login
- */
 export const login = async (req, res) => {
   try {
     const { user, token } = await authService.login(req.body);
@@ -29,9 +23,6 @@ export const login = async (req, res) => {
   }
 };
 
-/**
- * GET /api/auth/me
- */
 export const getMe = async (req, res) => {
   try {
     const user = await authService.getMe(req.user.id);
@@ -41,9 +32,6 @@ export const getMe = async (req, res) => {
   }
 };
 
-/**
- * GET /api/auth/oauth/callback
- */
 export const socialLoginCallback = (req, res) => {
   try {
     const redirectURL = authService.socialLoginCallback(req.user.id);
@@ -54,9 +42,6 @@ export const socialLoginCallback = (req, res) => {
   }
 };
 
-/**
- * POST /api/auth/forgot-password
- */
 export const forgotPassword = async (req, res, next) => {
   try {
     const payload = await authService.forgotPassword(req.body.email);
@@ -69,9 +54,6 @@ export const forgotPassword = async (req, res, next) => {
   }
 };
 
-/**
- * GET /api/auth/reset-password/:token
- */
 export const verifyResetToken = async (req, res) => {
   try {
     const payload = await authService.verifyResetToken(req.params.token);
@@ -81,9 +63,6 @@ export const verifyResetToken = async (req, res) => {
   }
 };
 
-/**
- * POST /api/auth/reset-password/:token
- */
 export const resetPassword = async (req, res) => {
   try {
     const payload = await authService.resetPassword(req.params.token, req.body.password);

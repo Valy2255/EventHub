@@ -207,8 +207,7 @@ export const findTicketsByPurchaseId = async (purchaseId) => {
   }
 };
 
-// In models/Purchase.js
-// In models/Purchase.js - fix the findByPaymentId function
+// Find purchase by payment ID
 export const findByPaymentId = async (paymentId) => {
   try {
     if (!paymentId) {

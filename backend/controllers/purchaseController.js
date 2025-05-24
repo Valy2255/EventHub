@@ -1,15 +1,18 @@
-// backend/controllers/purchaseController.js
-import * as Purchase from "../models/Purchase.js";
-import * as Event from "../models/Event.js";
+import { PurchaseService } from '../services/PurchaseService.js';
 
-// Get purchase history for authenticated user
+const purchaseService = new PurchaseService();
+
+/**
+ * GET /api/purchases
+ * Get purchase history for authenticated user
+ */
 export const getPurchaseHistory = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page = req.query.page;
+    const limit = req.query.limit;
     
-    const result = await Purchase.findByUser(userId, page, limit);
+    const result = await purchaseService.getPurchaseHistory(userId, page, limit);
     
     res.status(200).json({
       success: true,
@@ -18,57 +21,55 @@ export const getPurchaseHistory = async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error fetching purchase history:', error);
-    next(error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch purchase history', 
+      error: error.message 
+    });
   }
 };
 
-// Get purchase by ID
+/**
+ * GET /api/purchases/:id
+ * Get purchase by ID
+ */
 export const getPurchaseById = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+    const userRole = req.user.role;
     
-    // Find the purchase
-    const purchase = await Purchase.findById(id);
-    
-    if (!purchase) {
-      return res.status(404).json({
-        success: false,
-        error: 'Purchase not found'
-      });
-    }
-    
-    // Check if the purchase belongs to the user
-    if (purchase.user_id !== userId && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'You do not have permission to view this purchase'
-      });
-    }
-    
-    // Get the purchase items (tickets purchased)
-    const items = await Purchase.getItemsByPurchaseId(id);
-    
-    // Get the event details if available
-    let event = null;
-    if (items && items.length > 0 && items[0].event_id) {
-      event = await Event.findById(items[0].event_id);
-    }
-    
-    // Get tickets associated with the purchase
-    const tickets = await Purchase.findTicketsByPurchaseId(id);
+    const result = await purchaseService.getPurchaseById(id, userId, userRole);
     
     res.status(200).json({
       success: true,
       data: {
-        ...purchase,
-        items,
-        event,
-        tickets
+        ...result.purchase,
+        items: result.items,
+        event: result.event,
+        tickets: result.tickets
       }
     });
   } catch (error) {
+    if (error.message === 'Purchase not found') {
+      return res.status(404).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
+    if (error.message === 'You do not have permission to view this purchase') {
+      return res.status(403).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
     console.error('Error fetching purchase:', error);
-    next(error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch purchase', 
+      error: error.message 
+    });
   }
 };

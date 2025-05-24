@@ -40,28 +40,6 @@ export const findById = async (id) => {
   }
 };
 
-// Create a new ticket type
-export const create = async (data) => {
-  const { event_id, name, description, price, quantity } = data;
-  
-  const query = {
-    text: `
-      INSERT INTO ticket_types(event_id, name, description, price, quantity, available_quantity)
-      VALUES($1, $2, $3, $4, $5, $5)
-      RETURNING *
-    `,
-    values: [event_id, name, description, price, quantity]
-  };
-  
-  try {
-    const result = await db.query(query);
-    return result.rows[0];
-  } catch (error) {
-    console.error('Error creating ticket type:', error);
-    throw error;
-  }
-};
-
 // Update available quantity
 export const updateAvailability = async (ticketTypeId, quantityChange) => {
   // Ensure parameters are valid numbers

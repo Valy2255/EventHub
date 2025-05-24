@@ -43,34 +43,6 @@ export const findById = async (id) => {
   }
 };
 
-// Create a new ticket (reserved status initially)
-export const createReserved = async (data) => {
-  const { ticket_type_id, user_id, event_id, price } = data;
-  
-  // Calculate reservation expiration time (15 minutes from now)
-  const now = new Date();
-  const reservationExpires = new Date(now.getTime() + 15 * 60 * 1000);
-  
-  const query = {
-    text: `
-      INSERT INTO tickets(
-        ticket_type_id, user_id, event_id, price, status, reservation_expires_at
-      )
-      VALUES($1, $2, $3, $4, 'reserved', $5)
-      RETURNING *
-    `,
-    values: [ticket_type_id, user_id, event_id, price, reservationExpires]
-  };
-  
-  try {
-    const result = await db.query(query);
-    return result.rows[0];
-  } catch (error) {
-    console.error('Error creating ticket:', error);
-    throw error;
-  }
-};
-
 // Create a purchased ticket directly
 export const createPurchased = async (client, data) => {
   const { ticket_type_id, user_id, event_id, price, qr_code } = data;
@@ -94,27 +66,6 @@ export const createPurchased = async (client, data) => {
     return result.rows[0];
   } catch (error) {
     console.error('Error creating purchased ticket:', error);
-    throw error;
-  }
-};
-
-// Update ticket status to purchased
-export const updateToPurchased = async (id, qrCode) => {
-  const query = {
-    text: `
-      UPDATE tickets
-      SET status = 'purchased', qr_code = $2, purchase_date = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-    `,
-    values: [id, qrCode]
-  };
-  
-  try {
-    const result = await db.query(query);
-    return result.rows[0];
-  } catch (error) {
-    console.error('Error updating ticket to purchased:', error);
     throw error;
   }
 };
@@ -186,32 +137,6 @@ export const findByUser = async (userId) => {
     return result.rows;
   } catch (error) {
     console.error('Error finding user tickets:', error);
-    throw error;
-  }
-};
-
-// Validate a ticket by QR code
-export const validateQrCode = async (qrCode) => {
-  const query = {
-    text: `
-      SELECT t.*, 
-             e.name as event_name, e.date, e.time, e.venue,
-             tt.name as ticket_type_name,
-             u.name as user_name, u.email as user_email
-      FROM tickets t
-      JOIN events e ON t.event_id = e.id
-      JOIN ticket_types tt ON t.ticket_type_id = tt.id
-      JOIN users u ON t.user_id = u.id
-      WHERE t.qr_code = $1 AND t.status = 'purchased'
-    `,
-    values: [qrCode]
-  };
-  
-  try {
-    const result = await db.query(query);
-    return result.rows[0];
-  } catch (error) {
-    console.error('Error validating QR code:', error);
     throw error;
   }
 };
@@ -620,53 +545,6 @@ export const processAutomaticRefundCompletion = async (daysThreshold = 5) => {
     throw error;
   } finally {
     client.release();
-  }
-};
-
-// Add these new functions to your Ticket.js model
-
-// Find ticket by QR code data
-export const findByQrData = async (qrData) => {
-  try {
-    // The qrData is expected to be a JSON string with ticketId and hash
-    const data = JSON.parse(qrData);
-    
-    if (!data || !data.id || !data.hash) {
-      throw new Error('Invalid QR code data format');
-    }
-    
-    const query = {
-      text: `
-        SELECT t.*, 
-              e.name as event_name, e.date, e.time, e.venue, e.address,
-              tt.name as ticket_type_name,
-              u.name as user_name, u.email as user_email
-        FROM tickets t
-        JOIN events e ON t.event_id = e.id
-        JOIN ticket_types tt ON t.ticket_type_id = tt.id
-        JOIN users u ON t.user_id = u.id
-        WHERE t.id = $1 AND t.status = 'purchased'
-      `,
-      values: [data.id]
-    };
-    
-    const result = await db.query(query);
-    const ticket = result.rows[0];
-    
-    if (!ticket) {
-      return null;
-    }
-    
-    // Verify the hash to prevent forgery
-    const expectedHash = generateTicketHash(ticket.id, ticket.event_id, ticket.user_id);
-    if (expectedHash !== data.hash) {
-      throw new Error('Invalid ticket signature');
-    }
-    
-    return ticket;
-  } catch (error) {
-    console.error('Error validating ticket by QR data:', error);
-    throw error;
   }
 };
 

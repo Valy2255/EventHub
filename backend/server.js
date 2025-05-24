@@ -7,7 +7,7 @@ import config from "./config/config.js";
 import "./config/passport.js";
 import pg from "pg";
 import authRoutes from "./routes/auth.js";
-import adminRoutes from "./routes/admin/admin.js";
+import adminRoutes from "./routes/admin/adminRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import eventRoutes from "./routes/eventRoutes.js";

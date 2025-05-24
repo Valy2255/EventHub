@@ -35,6 +35,44 @@ const TicketCheckIn = () => {
   // Use the proper React useRef hook instead of a plain object
   const qrcodeScannerRef = useRef(null);
 
+  // Fetch event check-in statistics
+  const fetchEventStats = useCallback(async (eventId) => {
+    try {
+      const statsResponse = await api.get(`/admin/check-in/stats/${eventId}`);
+      setEventStats(statsResponse.data.data.stats);
+      setRecentCheckIns(statsResponse.data.data.recentCheckIns || []);
+    } catch (statsError) {
+      console.error("Error fetching event stats:", statsError);
+    }
+  }, []);
+
+  // Reset scanner state to scan another ticket
+  const resetScannerState = useCallback(() => {
+    setTicketResult(null);
+    setError(null);
+    setSuccess(null);
+    setManualInput("");
+
+    if (qrcodeScannerRef.current) {
+      qrcodeScannerRef.current
+        .clear()
+        .then(() => {
+          console.log("Scanner cleared successfully");
+          setScannerInitialized(false);
+
+          setTimeout(() => {
+            if (isScanning) {
+              setScannerInitialized(true);
+            }
+          }, 300);
+        })
+        .catch((clearError) => {
+          console.error("Failed to clear scanner:", clearError);
+          setScannerInitialized(false);
+        });
+    }
+  }, [isScanning]);  // 👈 only re-create when `isScanning` changes
+
   // Validate ticket via API call - using useCallback to memoize the function
   const validateTicketQR = useCallback(async (qrCodeData) => {
     try {
@@ -95,16 +133,6 @@ const TicketCheckIn = () => {
     }
   }, [fetchEventStats, isScanning, resetScannerState]);
 
-  // Fetch event check-in statistics
-  const fetchEventStats = useCallback(async (eventId) => {
-    try {
-      const statsResponse = await api.get(`/admin/check-in/stats/${eventId}`);
-      setEventStats(statsResponse.data.data.stats);
-      setRecentCheckIns(statsResponse.data.data.recentCheckIns || []);
-    } catch (statsError) {
-      console.error("Error fetching event stats:", statsError);
-    }
-  }, []);
 
   const toggleScanner = () => {
     // Clear any existing errors when changing scanner state
@@ -280,33 +308,7 @@ const TicketCheckIn = () => {
     }
   };
 
-  // Reset scanner state to scan another ticket
-  const resetScannerState = useCallback(() => {
-    setTicketResult(null);
-    setError(null);
-    setSuccess(null);
-    setManualInput("");
-
-    if (qrcodeScannerRef.current) {
-      qrcodeScannerRef.current
-        .clear()
-        .then(() => {
-          console.log("Scanner cleared successfully");
-          setScannerInitialized(false);
-
-          setTimeout(() => {
-            if (isScanning) {
-              setScannerInitialized(true);
-            }
-          }, 300);
-        })
-        .catch((clearError) => {
-          console.error("Failed to clear scanner:", clearError);
-          setScannerInitialized(false);
-        });
-    }
-  }, [isScanning]);  // 👈 only re-create when `isScanning` changes
-
+  
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
