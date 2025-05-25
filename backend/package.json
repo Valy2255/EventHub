@@ -4,7 +4,13 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --coverage",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --silent",
+    "test:utils": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --testPathPattern='tests/utils' --verbose",
+    "test:models": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --testPathPattern='tests/models' --verbose",
+    "test:controllers": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --testPathPattern='tests/controllers' --verbose",
+    "test:services": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --testPathPattern='tests/services' --verbose",
+    "test:middleware": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --testPathPattern='tests/middleware' --verbose",
+    "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config=jest.config.cjs --testPathPattern='tests/integration' --verbose",
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
