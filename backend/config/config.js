@@ -7,16 +7,18 @@ import { dirname } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+if (process.env.NODE_ENV !== "test") {
+  dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-console.log("Environment variables:", {
-  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-  FACEBOOK_APP_ID: process.env.FACEBOOK_APP_ID,
-  FACEBOOK_APP_SECRET: process.env.FACEBOOK_APP_SECRET,
-  JWT_SECRET: process.env.JWT_SECRET,
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN,
-});
+  console.log("Environment variables:", {
+    GOOGLE_CLIENT_ID:     process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    FACEBOOK_APP_ID:      process.env.FACEBOOK_APP_ID,
+    FACEBOOK_APP_SECRET:  process.env.FACEBOOK_APP_SECRET,
+    JWT_SECRET:           process.env.JWT_SECRET,
+    JWT_EXPIRES_IN:       process.env.JWT_EXPIRES_IN,
+  });
+}
 
 export default {
   port: process.env.PORT,
