@@ -148,22 +148,38 @@ describe("AdminService", () => {
         price: "50.00",
         user_id: 1,
         purchase_id: 1,
+        event_id: 1,
       };
 
-      // Mock transaction
+      const mockUpdatedTicket = {
+        ...mockTicket,
+        refund_status: "completed",
+        status: "cancelled",
+      };
+
+      // Mock transaction with the exact query sequence from approveRefund
       adminService.executeInTransaction = jest.fn(async (callback) => {
         const mockClient = {
           query: jest
             .fn()
-            .mockResolvedValueOnce({ rows: [mockTicket] }) // Get ticket
-            .mockResolvedValueOnce({}) // Update refund status
-            .mockResolvedValueOnce({}) // Update ticket status
+            // 1. Get ticket with event and purchase details
+            .mockResolvedValueOnce({ rows: [mockTicket] })
+            // 2. Update ticket refund status
+            .mockResolvedValueOnce({ rows: [] })
+            // 3. Update ticket status to 'cancelled' (for completed refunds)
+            .mockResolvedValueOnce({ rows: [] })
+            // 4. Get payment information (first attempt - direct association)
             .mockResolvedValueOnce({
-              rows: [{ id: 1, payment_method: "card" }],
-            }) // Get payment
-            .mockResolvedValueOnce({ rows: [] }) // Get payment method
-            .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Create refund
-            .mockResolvedValueOnce({ rows: [mockTicket] }), // Get updated ticket
+              rows: [{ id: 1, payment_method: "card", purchase_id: 1 }],
+            })
+            // 5. Get payment method for card payments
+            .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+            // 6. Create refund record
+            .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+            // 7. Update refund status to completed (for card payments)
+            .mockResolvedValueOnce({ rows: [] })
+            // 8. Get updated ticket data for response
+            .mockResolvedValueOnce({ rows: [mockUpdatedTicket] }),
         };
 
         UserModel.addCredits.mockResolvedValue();
@@ -175,12 +191,155 @@ describe("AdminService", () => {
 
       expect(result.message).toBe("Refund status updated to completed");
       expect(result.data).toBeDefined();
+      expect(result.data).toEqual(mockUpdatedTicket);
     });
 
     it("should throw error for invalid status", async () => {
       await expect(adminService.approveRefund(1, "invalid")).rejects.toThrow(
         "Invalid status"
       );
+    });
+
+    it("should handle refund when no payment is found", async () => {
+      const ticketId = 1;
+      const status = "completed";
+      const mockTicket = {
+        id: ticketId,
+        event_name: "Test Event",
+        price: "50.00",
+        user_id: 1,
+        purchase_id: 1,
+        event_id: 1,
+      };
+
+      const mockUpdatedTicket = {
+        ...mockTicket,
+        refund_status: "completed",
+        status: "cancelled",
+      };
+
+      adminService.executeInTransaction = jest.fn(async (callback) => {
+        const mockClient = {
+          query: jest
+            .fn()
+            // 1. Get ticket with event and purchase details
+            .mockResolvedValueOnce({ rows: [mockTicket] })
+            // 2. Update ticket refund status
+            .mockResolvedValueOnce({ rows: [] })
+            // 3. Update ticket status to 'cancelled'
+            .mockResolvedValueOnce({ rows: [] })
+            // 4. Get payment information (first attempt) - no payment found
+            .mockResolvedValueOnce({ rows: [] })
+            // 5. Try to find payment through purchase - no payment found
+            .mockResolvedValueOnce({ rows: [] })
+            // 6. Get updated ticket data for response
+            .mockResolvedValueOnce({ rows: [mockUpdatedTicket] }),
+        };
+
+        return callback(mockClient);
+      });
+
+      const result = await adminService.approveRefund(ticketId, status);
+
+      expect(result.message).toBe("Refund status updated to completed");
+      expect(result.data).toEqual(mockUpdatedTicket);
+    });
+
+    it("should handle credit refunds", async () => {
+      const ticketId = 1;
+      const status = "completed";
+      const mockTicket = {
+        id: ticketId,
+        event_name: "Test Event",
+        price: "50.00",
+        user_id: 1,
+        purchase_id: 1,
+        event_id: 1,
+      };
+
+      const mockUpdatedTicket = {
+        ...mockTicket,
+        refund_status: "completed",
+        status: "cancelled",
+      };
+
+      adminService.executeInTransaction = jest.fn(async (callback) => {
+        const mockClient = {
+          query: jest
+            .fn()
+            // 1. Get ticket with event and purchase details
+            .mockResolvedValueOnce({ rows: [mockTicket] })
+            // 2. Update ticket refund status
+            .mockResolvedValueOnce({ rows: [] })
+            // 3. Update ticket status to 'cancelled'
+            .mockResolvedValueOnce({ rows: [] })
+            // 4. Get payment information (credits payment)
+            .mockResolvedValueOnce({
+              rows: [{ id: 1, payment_method: "credits", purchase_id: 1 }],
+            })
+            // 5. Create refund record
+            .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+            // 6. Update refund status to completed (for credits)
+            .mockResolvedValueOnce({ rows: [] })
+            // 7. Get updated ticket data for response
+            .mockResolvedValueOnce({ rows: [mockUpdatedTicket] }),
+        };
+
+        UserModel.addCredits.mockResolvedValue();
+
+        return callback(mockClient);
+      });
+
+      const result = await adminService.approveRefund(ticketId, status);
+
+      expect(UserModel.addCredits).toHaveBeenCalledWith(
+        mockTicket.user_id,
+        50, // refund amount
+        "refund",
+        expect.stringContaining("Refund for ticket to:"),
+        1, // refund ID
+        "refund"
+      );
+      expect(result.message).toBe("Refund status updated to completed");
+      expect(result.data).toEqual(mockUpdatedTicket);
+    });
+
+    it("should handle non-completed status updates", async () => {
+      const ticketId = 1;
+      const status = "processing";
+      const mockTicket = {
+        id: ticketId,
+        event_name: "Test Event",
+        price: "50.00",
+        user_id: 1,
+        purchase_id: 1,
+        event_id: 1,
+      };
+
+      const mockUpdatedTicket = {
+        ...mockTicket,
+        refund_status: "processing",
+      };
+
+      adminService.executeInTransaction = jest.fn(async (callback) => {
+        const mockClient = {
+          query: jest
+            .fn()
+            // 1. Get ticket with event and purchase details
+            .mockResolvedValueOnce({ rows: [mockTicket] })
+            // 2. Update ticket refund status
+            .mockResolvedValueOnce({ rows: [] })
+            // 3. Get updated ticket data for response (no refund processing for non-completed status)
+            .mockResolvedValueOnce({ rows: [mockUpdatedTicket] }),
+        };
+
+        return callback(mockClient);
+      });
+
+      const result = await adminService.approveRefund(ticketId, status);
+
+      expect(result.message).toBe("Refund status updated to processing");
+      expect(result.data).toEqual(mockUpdatedTicket);
     });
   });
 
