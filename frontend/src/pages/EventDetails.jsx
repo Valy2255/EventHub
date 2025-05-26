@@ -280,15 +280,6 @@ const EventDetails = () => {
                 </span>
               </div>
             )}
-
-            <div className="flex space-x-3">
-              <button className="bg-white bg-opacity-20 hover:bg-opacity-30 px-3 py-1 rounded-full flex items-center text-purple-600">
-                <FaShare className="mr-1" /> Share
-              </button>
-              <button className="bg-white bg-opacity-20 hover:bg-opacity-30 px-3 py-1 rounded-full flex items-center text-purple-600">
-                <FaHeart className="mr-1" /> Save
-              </button>
-            </div>
           </div>
         </div>
       </div>

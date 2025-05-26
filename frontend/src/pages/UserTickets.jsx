@@ -127,7 +127,7 @@ export default function UserTickets() {
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  
+
   // Exchange state variables
   const [showExchangeModal, setShowExchangeModal] = useState(false);
   const [availableTicketTypes, setAvailableTicketTypes] = useState([]);
@@ -346,21 +346,24 @@ export default function UserTickets() {
     setSelectedTicket(ticket);
     setSelectedEvent(event);
     setExchangeError(null);
-    
+
     // Fetch available ticket types for the event
     try {
       const response = await api.get(`/events/${event.eventId}/ticket-types`);
-      
+
       // Filter out the current ticket type and sold out ticket types
       const availableTypes = response.data.data.filter(
-        type => type.id !== ticket.ticket_type_id && type.available_quantity > 0
+        (type) =>
+          type.id !== ticket.ticket_type_id && type.available_quantity > 0
       );
-      
+
       setAvailableTicketTypes(availableTypes);
       setShowExchangeModal(true);
     } catch (err) {
       console.error("Error fetching ticket types:", err);
-      setExchangeError("Could not load available ticket types for exchange. Please try again later.");
+      setExchangeError(
+        "Could not load available ticket types for exchange. Please try again later."
+      );
     }
   };
 
@@ -373,43 +376,45 @@ export default function UserTickets() {
   };
 
   // Handle ticket exchange
-const handleExchangeTicket = async (newTicketType, responseData) => {
-  if (!selectedTicket || !newTicketType) return;
+  const handleExchangeTicket = async (newTicketType, responseData) => {
+    if (!selectedTicket || !newTicketType) return;
 
-  try {
-    setExchangingTicket(selectedTicket.id);
-    setExchangeError(null);
-    setExchangeSuccess(null);
+    try {
+      setExchangingTicket(selectedTicket.id);
+      setExchangeError(null);
+      setExchangeSuccess(null);
 
-    // The exchange has already been processed by the modal
-    // Just handle the response message
-    const paymentMethod = responseData.data?.paymentMethod;
-    
-    setExchangeSuccess(
-      `Your ticket has been exchanged successfully to ${newTicketType.name}. ` + 
-      (parseFloat(newTicketType.price) > parseFloat(selectedTicket.price) 
-        ? `Your payment ${paymentMethod === 'card' ? 'by card' : 'with credits'} for the difference has been processed.` 
-        : parseFloat(newTicketType.price) < parseFloat(selectedTicket.price)
-          ? "A credit has been issued to your account."
-          : "")
-    );
+      // The exchange has already been processed by the modal
+      // Just handle the response message
+      const paymentMethod = responseData.data?.paymentMethod;
 
-    // Refresh tickets
-    await refreshTickets();
+      setExchangeSuccess(
+        `Your ticket has been exchanged successfully to ${newTicketType.name}. ` +
+          (parseFloat(newTicketType.price) > parseFloat(selectedTicket.price)
+            ? `Your payment ${
+                paymentMethod === "card" ? "by card" : "with credits"
+              } for the difference has been processed.`
+            : parseFloat(newTicketType.price) < parseFloat(selectedTicket.price)
+            ? "A credit has been issued to your account."
+            : "")
+      );
 
-    // Close the modal
-    closeExchangeModal();
-  } catch (err) {
-    console.error("Error exchanging ticket:", err);
-    setExchangeError(
-      err.response?.data?.error ||
-        "Could not exchange the ticket. Please try again later."
-    );
-    closeExchangeModal();
-  } finally {
-    setExchangingTicket(null);
-  }
-};
+      // Refresh tickets
+      await refreshTickets();
+
+      // Close the modal
+      closeExchangeModal();
+    } catch (err) {
+      console.error("Error exchanging ticket:", err);
+      setExchangeError(
+        err.response?.data?.error ||
+          "Could not exchange the ticket. Please try again later."
+      );
+      closeExchangeModal();
+    } finally {
+      setExchangingTicket(null);
+    }
+  };
 
   // Render the ticket list for an event
   const renderTicketList = (
@@ -563,7 +568,7 @@ const handleExchangeTicket = async (newTicketType, responseData) => {
 
                         <p className="text-sm">
                           {ticket.refund_status === "completed"
-                            ? "Your refund has been processed successfully."
+                            ? "Your refund has been processed successfully and credited to your account."
                             : ticket.refund_status === "processing"
                             ? "Your refund is being processed and may take 5-7 business days."
                             : ticket.refund_status === "failed"

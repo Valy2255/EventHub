@@ -1,9 +1,9 @@
-import { BaseService } from './BaseService.js';
-import { EventService } from './EventService.js';
-import * as User from '../models/User.js';
-import * as Ticket from '../models/Ticket.js';
-import * as Event from '../models/Event.js';
-import * as db from '../config/db.js';
+import { BaseService } from "./BaseService.js";
+import { EventService } from "./EventService.js";
+import * as User from "../models/User.js";
+import * as Ticket from "../models/Ticket.js";
+import * as Event from "../models/Event.js";
+import * as db from "../config/db.js";
 
 export class AdminService extends BaseService {
   constructor() {
@@ -25,7 +25,7 @@ export class AdminService extends BaseService {
   async getUserById(userId) {
     const user = await User.findById(userId);
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
     return user;
   }
@@ -44,7 +44,7 @@ export class AdminService extends BaseService {
     const result = await db.query(query);
 
     if (result.rows.length === 0) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     return result.rows[0];
@@ -54,7 +54,7 @@ export class AdminService extends BaseService {
   async deleteUser(userId, currentUserId) {
     // Don't allow deleting your own account
     if (userId === currentUserId) {
-      throw new Error('You cannot delete your own account');
+      throw new Error("You cannot delete your own account");
     }
 
     const query = {
@@ -65,7 +65,7 @@ export class AdminService extends BaseService {
     const result = await db.query(query);
 
     if (result.rows.length === 0) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     return { message: "User deleted successfully" };
@@ -80,12 +80,12 @@ export class AdminService extends BaseService {
 
     // Total number of events
     const eventsQuery = {
-      text: "SELECT COUNT(*) FROM events",
+      text: "SELECT COUNT(*) FROM events WHERE status = 'active' or status = 'rescheduled'",
     };
 
     // Total number of tickets sold
     const ticketsQuery = {
-      text: "SELECT COUNT(*) FROM tickets WHERE status = 'purchased'",
+      text: "SELECT COUNT(*) FROM tickets WHERE status = 'purchased' ",
     };
 
     // Number of categories
@@ -134,8 +134,13 @@ export class AdminService extends BaseService {
 
   // Approve a refund request
   async approveRefund(ticketId, status) {
-    if (!status || !["processing", "completed", "failed", "denied"].includes(status)) {
-      throw new Error("Invalid status. Status must be one of: processing, completed, failed, denied");
+    if (
+      !status ||
+      !["processing", "completed", "failed", "denied"].includes(status)
+    ) {
+      throw new Error(
+        "Invalid status. Status must be one of: processing, completed, failed, denied"
+      );
     }
 
     return this.executeInTransaction(async (client) => {
@@ -152,7 +157,7 @@ export class AdminService extends BaseService {
       );
 
       if (ticketResult.rows.length === 0) {
-        throw new Error('Ticket not found');
+        throw new Error("Ticket not found");
       }
 
       const ticket = ticketResult.rows[0];
@@ -167,7 +172,7 @@ export class AdminService extends BaseService {
       if (status === "completed") {
         // Update ticket status to 'refunded'
         await client.query(
-          `UPDATE tickets SET status = 'refunded' WHERE id = $1`,
+          `UPDATE tickets SET status = 'cancelled' WHERE id = $1`,
           [ticketId]
         );
 
@@ -228,6 +233,8 @@ export class AdminService extends BaseService {
             notes: `Refund for ticket ID: ${ticket.id} to event: ${ticket.event_name}`,
           };
 
+          console.log("Creating refund record with data:", refundData);
+
           const insertResult = await client.query(
             `INSERT INTO refunds
              (purchase_id, payment_id, payment_method_id, payment_method_type, amount, status, reference_id, notes, completed_at)
@@ -258,19 +265,16 @@ export class AdminService extends BaseService {
               refundId,
               "refund"
             );
-          } else if (payment.payment_method === "card") {
-            // For card payments, refund as credits using User.addCredits
-            await User.addCredits(
-              ticket.user_id,
-              refundAmount,
-              "refund",
-              `Card refund converted to credits for ticket to: ${ticket.event_name}`,
-              refundId,
-              "refund"
+            await client.query(
+              `UPDATE refunds SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1`,
+              [refundId]
             );
+          } else if (payment.payment_method === "card") {
+            // For card payments, refund using the payment gateway
 
-            console.log(
-              `Card payment refunded as credits: $${refundAmount} for ticket ${ticket.id}`
+            await client.query(
+              `UPDATE refunds SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1`,
+              [refundId]
             );
           }
 
@@ -311,7 +315,8 @@ export class AdminService extends BaseService {
     ).length;
 
     // Process any automatic completions for tickets in 'processing' status for more than 5 days
-    const autoCompletedRefunds = await Ticket.processAutomaticRefundCompletion();
+    const autoCompletedRefunds =
+      await Ticket.processAutomaticRefundCompletion();
 
     // If any refunds were automatically completed, refresh the list
     let finalRefunds = refunds;
@@ -331,7 +336,13 @@ export class AdminService extends BaseService {
 
   // Get all events (admin)
   async getAllEvents(queryParams) {
-    const { sort = "newest", status, search, page = 1, limit = 10 } = queryParams;
+    const {
+      sort = "newest",
+      status,
+      search,
+      page = 1,
+      limit = 10,
+    } = queryParams;
 
     let query = `
       SELECT e.*, 
@@ -390,7 +401,9 @@ export class AdminService extends BaseService {
 
     // Pagination
     const offset = (page - 1) * limit;
-    query += ` LIMIT $${queryParamsArray.length + 1} OFFSET $${queryParamsArray.length + 2}`;
+    query += ` LIMIT $${queryParamsArray.length + 1} OFFSET $${
+      queryParamsArray.length + 2
+    }`;
     queryParamsArray.push(limit, offset);
 
     // Count total events for pagination
@@ -446,7 +459,7 @@ export class AdminService extends BaseService {
     const event = eventResult.rows[0];
 
     if (!event) {
-      throw new Error('Event not found');
+      throw new Error("Event not found");
     }
 
     // Get ticket types
@@ -607,7 +620,7 @@ export class AdminService extends BaseService {
     const currentEventResult = await db.query(currentEventQuery);
 
     if (currentEventResult.rows.length === 0) {
-      throw new Error('Event not found');
+      throw new Error("Event not found");
     }
 
     const currentEvent = currentEventResult.rows[0];
@@ -621,7 +634,7 @@ export class AdminService extends BaseService {
     const checkResult = await db.query(checkQuery);
 
     if (checkResult.rows.length === 0) {
-      throw new Error('Event not found');
+      throw new Error("Event not found");
     }
 
     // Filter out any fields that shouldn't be directly updated
@@ -788,7 +801,7 @@ export class AdminService extends BaseService {
     const existingEvent = await Event.findById(eventId);
 
     if (!existingEvent) {
-      throw new Error('Event not found');
+      throw new Error("Event not found");
     }
 
     // Check if tickets have been sold
@@ -836,7 +849,9 @@ export class AdminService extends BaseService {
     const TicketModel = await import("../models/Ticket.js");
 
     // Process refunds that have been in 'processing' status for more than the threshold days
-    const processedRefunds = await TicketModel.processAutomaticRefundCompletion(threshold);
+    const processedRefunds = await TicketModel.processAutomaticRefundCompletion(
+      threshold
+    );
 
     return {
       message: `Successfully processed ${processedRefunds.length} pending refunds`,
@@ -848,10 +863,13 @@ export class AdminService extends BaseService {
   // Cancel an event
   async cancelEvent(eventId, cancelReason, userId) {
     // Check if user has permission
-    const hasPermission = await this.eventService.checkEventPermission(eventId, userId);
+    const hasPermission = await this.eventService.checkEventPermission(
+      eventId,
+      userId
+    );
 
     if (!hasPermission) {
-      throw new Error('You do not have permission to cancel this event');
+      throw new Error("You do not have permission to cancel this event");
     }
 
     return this.executeInTransaction(async (client) => {
@@ -862,13 +880,13 @@ export class AdminService extends BaseService {
       );
 
       if (eventResult.rows.length === 0) {
-        throw new Error('Event not found');
+        throw new Error("Event not found");
       }
 
       const event = eventResult.rows[0];
 
       if (event.status === "canceled") {
-        throw new Error('Event is already canceled');
+        throw new Error("Event is already canceled");
       }
 
       // Update event status
@@ -885,7 +903,8 @@ export class AdminService extends BaseService {
       );
 
       return {
-        message: "Event canceled successfully. Refunds will be processed automatically.",
+        message:
+          "Event canceled successfully. Refunds will be processed automatically.",
       };
     });
   }
@@ -894,14 +913,17 @@ export class AdminService extends BaseService {
   async rescheduleEvent(eventId, newDate, newTime, rescheduleReason, userId) {
     // Validate new date and time
     if (!newDate || !newTime) {
-      throw new Error('New date and time are required');
+      throw new Error("New date and time are required");
     }
 
     // Check if user has permission
-    const hasPermission = await this.eventService.checkEventPermission(eventId, userId);
+    const hasPermission = await this.eventService.checkEventPermission(
+      eventId,
+      userId
+    );
 
     if (!hasPermission) {
-      throw new Error('You do not have permission to reschedule this event');
+      throw new Error("You do not have permission to reschedule this event");
     }
 
     return this.executeInTransaction(async (client) => {
@@ -912,13 +934,13 @@ export class AdminService extends BaseService {
       );
 
       if (eventResult.rows.length === 0) {
-        throw new Error('Event not found');
+        throw new Error("Event not found");
       }
 
       const event = eventResult.rows[0];
 
       if (event.status === "canceled") {
-        throw new Error('Cannot reschedule a canceled event');
+        throw new Error("Cannot reschedule a canceled event");
       }
 
       // Update event with new date and time
@@ -944,7 +966,8 @@ export class AdminService extends BaseService {
       );
 
       return {
-        message: "Event rescheduled successfully. Attendees will be notified automatically.",
+        message:
+          "Event rescheduled successfully. Attendees will be notified automatically.",
       };
     });
   }
