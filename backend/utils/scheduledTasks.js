@@ -89,7 +89,7 @@ export const cleanupPastEvents = async () => {
       UPDATE events 
       SET status = 'inactive' 
       WHERE (date < CURRENT_DATE OR (date = CURRENT_DATE AND "time" < CURRENT_TIME))
-      AND status = 'active'
+      AND (status = 'active' OR status = 'rescheduled')
       RETURNING id, name, date, time
     `);
     

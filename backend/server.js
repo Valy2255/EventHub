@@ -39,10 +39,9 @@ global.pool = new pg.Pool({
   port: config.db.port,
 });
 
-// Configure Socket.IO with CORS settings aligned with your main app's CORS
 const io = new Server(httpServer, {
   cors: {
-    // Use the same origin as your main app
+    // Use the same origin as main app
     origin: config.cors.origin || "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
@@ -97,8 +96,6 @@ httpServer.listen(PORT, () => {
     } else {
       console.log("Database connected successfully");
 
-      // Initialize the enhanced scheduled tasks
-      // This uses the new comprehensive implementation from scheduledTasks.js
       initializeScheduledTasks();
       console.log("Enhanced scheduled tasks system initialized");
     }
